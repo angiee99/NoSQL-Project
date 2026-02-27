@@ -1,0 +1,62 @@
+services:
+  mongo1:
+    image: mongo:8
+    container_name: mongo1
+    hostname: mongo1
+    command: >
+      mongod --replSet rs0
+             --bind_ip_all
+             --keyFile /etc/mongo-keyfile
+             --auth
+    volumes:
+      - mongo1_data:/data/db
+      - ./secrets/mongo-keyfile:/etc/mongo-keyfile:ro
+      - ./scripts/init-replica.js:/docker-entrypoint-initdb.d/init-replica.js:ro
+    networks:
+      - mongo-network
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo2:
+    image: mongo:8
+    container_name: mongo2
+    hostname: mongo2
+    command: >
+      mongod --replSet rs0
+             --bind_ip_all
+             --keyFile /etc/mongo-keyfile
+             --auth
+    volumes:
+      - mongo2_data:/data/db
+      - ./secrets/mongo-keyfile:/etc/mongo-keyfile:ro
+    networks:
+      - mongo-network
+
+  mongo3:
+    image: mongo:8
+    container_name: mongo3
+    hostname: mongo3
+    command: >
+      mongod --replSet rs0
+             --bind_ip_all
+             --keyFile /etc/mongo-keyfile
+             --auth
+    volumes:
+      - mongo3_data:/data/db
+      - ./secrets/mongo-keyfile:/etc/mongo-keyfile:ro
+    networks:
+      - mongo-network
+
+volumes:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
+
+networks:
+  mongo-network:
+    driver: bridge
