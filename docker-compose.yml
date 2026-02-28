@@ -2,10 +2,25 @@ services:
   mongo1:
     image: mongo:8
     container_name: mongo1
-    # We add a small shell wrapper to the command to run the init script locally
-    entrypoint: [
-      "/bin/bash", "-c", 
-      "mongod --replSet rs0 --bind_ip_all --keyFile /run/secrets/mongo_key & sleep 5; mongosh --file /init-rs.js; wait" ]
+    entrypoint: 
+      - /bin/bash
+      - -c
+      - |
+        # Start MongoDB in the background
+        mongod --replSet rs0 --bind_ip_all --keyFile /run/secrets/mongo_key &
+
+        # Wait for the database to start
+        echo "Waiting for MongoDB to start..."
+        until mongosh --port 27017 --eval "db.adminCommand('ping')" --quiet; do
+          sleep 2
+        done
+
+        # Execute the JS initialization script
+        echo "Initializing Replica Set..."
+        mongosh --port 27017 --file /init-rs.js
+
+        # Stay alive
+        wait
     volumes:
       - mongo1_data:/data/db
       - ./scripts/init-rs.js:/init-rs.js:ro
@@ -17,7 +32,13 @@ services:
   mongo2:
     image: mongo:8
     container_name: mongo2
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--keyFile", "/run/secrets/mongo_key"]
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --keyFile
+      - /run/secrets/mongo_key
     volumes:
       - mongo2_data:/data/db
     networks:
@@ -28,7 +49,13 @@ services:
   mongo3:
     image: mongo:8
     container_name: mongo3
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--keyFile", "/run/secrets/mongo_key"]
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --keyFile
+      - /run/secrets/mongo_key
     volumes:
       - mongo3_data:/data/db
     networks:
