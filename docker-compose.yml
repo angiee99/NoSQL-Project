@@ -17,13 +17,15 @@ services:
 
         # Execute the JS initialization script
         echo "Initializing Replica Set..."
-        mongosh --port 27017 --file /init-rs.js
-
+        MONGO_ROOT_PASSWORD=$MONGO_ROOT_PASSWORD mongosh --port 27017 --file /init-rs.js
+        
         # Stay alive
         wait
     volumes:
       - mongo1_data:/data/db
       - ./scripts/init-rs.js:/init-rs.js:ro
+    environment:
+      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
     networks:
       - mongo-cluster
     secrets:

@@ -28,9 +28,14 @@ try {
   }
 
   console.log("Node is Primary. Creating Admin user...");
+  const adminPassword = process.env.MONGO_ROOT_PASSWORD;
+
+  if (!adminPassword) {
+    throw new Error("MONGO_ROOT_PASSWORD not set!");
+  }
   db.getSiblingDB("admin").createUser({
     user: "admin",
-    pwd: "password123", 
+    pwd: adminPassword, 
     roles: [{ role: "root", db: "admin" }]
   });
   console.log("Setup complete!");
