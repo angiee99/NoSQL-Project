@@ -65,6 +65,72 @@ services:
     secrets:
       - mongo_key
 
+  cfg1:
+    image: mongo:8
+    container_name: cfg1
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        mongod --configsvr --replSet cfgRS --bind_ip_all --keyFile /run/secrets/mongo_key &
+        echo "Waiting for MongoDB to start..."
+        until mongosh --port 27019 --eval "db.adminCommand('ping')" --quiet; do
+          sleep 2
+        done
+
+        # Execute the JS initialization script
+        echo "Initializing Configuration Replica Set..."
+        MONGO_ROOT_PASSWORD=$MONGO_ROOT_PASSWORD mongosh --port 27019 --file /init-rs.js
+        
+        # Stay alive
+        wait
+        
+    volumes:
+      - cfg1_data:/data/db
+      - ./scripts/init-cfg.js:/init-rs.js:ro
+    environment:
+      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    networks:
+      - mongo-cluster
+    secrets:
+      - mongo_key
+
+  cfg2:
+    image: mongo:8
+    container_name: cfg2
+    command:
+      - mongod
+      - --configsvr
+      - --replSet
+      - cfgRS
+      - --bind_ip_all
+      - --keyFile
+      - /run/secrets/mongo_key
+    volumes:
+      - cfg2_data:/data/db
+    networks:
+      - mongo-cluster
+    secrets:
+      - mongo_key
+
+  cfg3:
+    image: mongo:8
+    container_name: cfg3
+    command:
+      - mongod
+      - --configsvr
+      - --replSet
+      - cfgRS
+      - --bind_ip_all
+      - --keyFile
+      - /run/secrets/mongo_key
+    volumes:
+      - cfg3_data:/data/db
+    networks:
+      - mongo-cluster
+    secrets:
+      - mongo_key
+
 networks:
   mongo-cluster:
     driver: bridge
@@ -73,6 +139,9 @@ volumes:
   mongo1_data:
   mongo2_data:
   mongo3_data:
+  cfg1_data:
+  cfg2_data:
+  cfg3_data:
 
 secrets:
   mongo_key:

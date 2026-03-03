@@ -1,0 +1,43 @@
+try {
+  const status = rs.status();
+  if (status.ok) {
+    console.log("Replica set already initialized.");
+  }
+} catch (e) {
+  console.log("Starting Replica Set initialization...");
+  
+  rs.initiate({
+        _id: "cfgRS",
+        configsvr: true,
+        members: [
+        {_id: 0, host: "cfg1:27019"},
+        {_id: 1, host: "cfg2:27019"},
+        {_id: 2, host: "cfg3:27019"}
+        ]
+    });
+
+  // Critical: Wait for this node to become PRIMARY
+  // The localhost exception only works until the first user is created
+  let isMaster = false;
+  while (!isMaster) {
+    const hello = db.runCommand({ hello: 1 });
+    isMaster = hello.isWritablePrimary || hello.ismaster;
+    if (!isMaster) {
+      console.log("Waiting for node to become Primary...");
+      sleep(2000);
+    }
+  }
+
+  console.log("Node is Primary. Creating Admin user...");
+  const adminPassword = process.env.MONGO_ROOT_PASSWORD;
+
+  if (!adminPassword) {
+    throw new Error("MONGO_ROOT_PASSWORD not set!");
+  }
+  db.getSiblingDB("admin").createUser({
+    user: "admin",
+    pwd: adminPassword, 
+    roles: [{ role: "root", db: "admin" }]
+  });
+  console.log("Setup complete!");
+}
