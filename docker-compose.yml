@@ -1,31 +1,23 @@
+name: mongodb-cluster
+
 services:
   mongo1:
     image: mongo:8
     container_name: mongo1
-    entrypoint: 
+    hostname: mongo1
+    restart: unless-stopped
+    entrypoint:
       - /bin/bash
-      - -c
-      - |
-        # Start MongoDB in the background
-        mongod --replSet rs0 --bind_ip_all --keyFile /run/secrets/mongo_key &
-
-        # Wait for the database to start
-        echo "Waiting for MongoDB to start..."
-        until mongosh --port 27017 --eval "db.adminCommand('ping')" --quiet; do
-          sleep 2
-        done
-
-        # Execute the JS initialization script
-        echo "Initializing Replica Set..."
-        MONGO_ROOT_PASSWORD=$MONGO_ROOT_PASSWORD mongosh --port 27017 --file /init-rs.js
-        
-        # Stay alive
-        wait
+      - /scripts/start-shard-primary.sh
+    environment:
+      MONGO_REPLSET_NAME: rs0
+      MONGO_PORT: "27017"
+      MONGO_INIT_SCRIPT: /scripts/init-rs.js
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo1_data:/data/db
-      - ./scripts/init-rs.js:/init-rs.js:ro
-    environment:
-      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
+      - ./scripts/init-rs.js:/scripts/init-rs.js:ro
     networks:
       - mongo-cluster
     secrets:
@@ -34,11 +26,16 @@ services:
   mongo2:
     image: mongo:8
     container_name: mongo2
+    hostname: mongo2
+    restart: unless-stopped
     command:
       - mongod
+      - --shardsvr
       - --replSet
       - rs0
       - --bind_ip_all
+      - --port
+      - "27017"
       - --keyFile
       - /run/secrets/mongo_key
     volumes:
@@ -51,11 +48,16 @@ services:
   mongo3:
     image: mongo:8
     container_name: mongo3
+    hostname: mongo3
+    restart: unless-stopped
     command:
       - mongod
+      - --shardsvr
       - --replSet
       - rs0
       - --bind_ip_all
+      - --port
+      - "27017"
       - --keyFile
       - /run/secrets/mongo_key
     volumes:
@@ -68,28 +70,20 @@ services:
   cfg1:
     image: mongo:8
     container_name: cfg1
+    hostname: cfg1
+    restart: unless-stopped
     entrypoint:
       - /bin/bash
-      - -c
-      - |
-        mongod --configsvr --replSet cfgRS --bind_ip_all --keyFile /run/secrets/mongo_key &
-        echo "Waiting for MongoDB to start..."
-        until mongosh --port 27019 --eval "db.adminCommand('ping')" --quiet; do
-          sleep 2
-        done
-
-        # Execute the JS initialization script
-        echo "Initializing Configuration Replica Set..."
-        MONGO_ROOT_PASSWORD=$MONGO_ROOT_PASSWORD mongosh --port 27019 --file /init-rs.js
-        
-        # Stay alive
-        wait
-        
+      - /scripts/start-config-primary.sh
+    environment:
+      MONGO_REPLSET_NAME: cfgRS
+      MONGO_PORT: "27019"
+      MONGO_INIT_SCRIPT: /scripts/init-cfg.js
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - cfg1_data:/data/db
-      - ./scripts/init-cfg.js:/init-rs.js:ro
-    environment:
-      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - ./scripts/start-config-primary.sh:/scripts/start-config-primary.sh:ro
+      - ./scripts/init-cfg.js:/scripts/init-cfg.js:ro
     networks:
       - mongo-cluster
     secrets:
@@ -98,12 +92,16 @@ services:
   cfg2:
     image: mongo:8
     container_name: cfg2
+    hostname: cfg2
+    restart: unless-stopped
     command:
       - mongod
       - --configsvr
       - --replSet
       - cfgRS
       - --bind_ip_all
+      - --port
+      - "27019"
       - --keyFile
       - /run/secrets/mongo_key
     volumes:
@@ -116,12 +114,16 @@ services:
   cfg3:
     image: mongo:8
     container_name: cfg3
+    hostname: cfg3
+    restart: unless-stopped
     command:
       - mongod
       - --configsvr
       - --replSet
       - cfgRS
       - --bind_ip_all
+      - --port
+      - "27019"
       - --keyFile
       - /run/secrets/mongo_key
     volumes:
@@ -130,6 +132,55 @@ services:
       - mongo-cluster
     secrets:
       - mongo_key
+
+  mongos:
+    image: mongo:8
+    container_name: mongos
+    hostname: mongos
+    restart: unless-stopped
+    depends_on:
+      - cfg1
+      - cfg2
+      - cfg3
+    command:
+      - mongos
+      - --bind_ip_all
+      - --port
+      - "27017"
+      - --configdb
+      - cfgRS/cfg1:27019,cfg2:27019,cfg3:27019
+      - --keyFile
+      - /run/secrets/mongo_key
+    ports:
+      - "27018:27017"
+    networks:
+      - mongo-cluster
+    secrets:
+      - mongo_key
+
+  cluster-bootstrap:
+    image: mongo:8
+    container_name: cluster-bootstrap
+    hostname: cluster-bootstrap
+    depends_on:
+      - mongos
+      - mongo1
+      - mongo2
+      - mongo3
+      - cfg1
+      - cfg2
+      - cfg3
+    restart: "no"
+    entrypoint:
+      - /bin/bash
+      - /scripts/bootstrap-cluster.sh
+    environment:
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - ./scripts/bootstrap-cluster.sh:/scripts/bootstrap-cluster.sh:ro
+      - ./scripts/init-cluster.js:/scripts/init-cluster.js:ro
+    networks:
+      - mongo-cluster
 
 networks:
   mongo-cluster:
