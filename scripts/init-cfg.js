@@ -1,14 +1,9 @@
-const adminPassword = process.env.MONGO_ROOT_PASSWORD;
-
-if (!adminPassword) {
-  throw new Error("MONGO_ROOT_PASSWORD not set");
-}
+const bootstrapPassword = process.env.MONGO_BOOTSTRAP_PASSWORD;
+if (!bootstrapPassword) throw new Error("MONGO_BOOTSTRAP_PASSWORD not set");
 
 try {
   const status = rs.status();
-  if (status.ok) {
-    print("Config replica set cfgRS already initialized.");
-  }
+  if (status.ok) print("Config replica set cfgRS already initialized.");
 } catch (e) {
   print("Initializing config replica set cfgRS...");
   rs.initiate({
@@ -39,17 +34,18 @@ while (!isPrimary) {
 
 try {
   db.getSiblingDB("admin").createUser({
-    user: "admin",
-    pwd: adminPassword,
-    roles: [{ role: "root", db: "admin" }]
+    user: "bootstrapAdmin",
+    pwd: bootstrapPassword,
+    roles: [
+      { role: "userAdminAnyDatabase", db: "admin" },
+      { role: "clusterAdmin", db: "admin" }
+    ]
   });
-  print("Admin user created on cfgRS.");
+  print("bootstrapAdmin created on cfgRS.");
 } catch (e) {
   const msg = e.toString();
-  if (msg.includes("already exists") || msg.includes("DuplicateKey")) {
-    print("Admin user already exists on cfgRS, skipping.");
-  } else if (msg.includes("not authorized")) {
-    print("Admin user likely already exists on cfgRS; skipping because auth is now enforced.");
+  if (msg.includes("already exists") || msg.includes("DuplicateKey") || msg.includes("not authorized")) {
+    print("bootstrapAdmin already exists on cfgRS, skipping.");
   } else {
     throw e;
   }

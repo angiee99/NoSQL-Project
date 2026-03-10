@@ -11,7 +11,7 @@ services:
       MONGO_REPLSET_NAME: rs0
       MONGO_PORT: "27017"
       MONGO_INIT_SCRIPT: /scripts/init-rs0.js
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
     volumes:
       - mongo1_data:/data/db
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
@@ -51,7 +51,7 @@ services:
       MONGO_REPLSET_NAME: rs1
       MONGO_PORT: "27017"
       MONGO_INIT_SCRIPT: /scripts/init-rs1.js
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
     volumes:
       - mongo4_data:/data/db
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
@@ -91,7 +91,7 @@ services:
       MONGO_REPLSET_NAME: rs2
       MONGO_PORT: "27017"
       MONGO_INIT_SCRIPT: /scripts/init-rs2.js
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
     volumes:
       - mongo7_data:/data/db
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
@@ -131,7 +131,7 @@ services:
       MONGO_REPLSET_NAME: cfgRS
       MONGO_PORT: "27019"
       MONGO_INIT_SCRIPT: /scripts/init-cfg.js
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
     volumes:
       - cfg1_data:/data/db
       - ./scripts/start-config-primary.sh:/scripts/start-config-primary.sh:ro
@@ -189,7 +189,9 @@ services:
       - cfg1
     entrypoint: ["/bin/bash", "/scripts/bootstrap-cluster.sh"]
     environment:
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
+      MONGO_CLUSTER_ADMIN_PASSWORD: ${MONGO_CLUSTER_ADMIN_PASSWORD}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD}
     volumes:
       - ./scripts/bootstrap-cluster.sh:/scripts/bootstrap-cluster.sh:ro
       - ./scripts/init-cluster.js:/scripts/init-cluster.js:ro

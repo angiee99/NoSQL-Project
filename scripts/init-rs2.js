@@ -1,5 +1,5 @@
-const adminPassword = process.env.MONGO_ROOT_PASSWORD;
-if (!adminPassword) throw new Error("MONGO_ROOT_PASSWORD not set");
+const bootstrapPassword = process.env.MONGO_BOOTSTRAP_PASSWORD;
+if (!bootstrapPassword) throw new Error("MONGO_BOOTSTRAP_PASSWORD not set");
 
 try {
   const status = rs.status();
@@ -33,15 +33,18 @@ while (!isPrimary) {
 
 try {
   db.getSiblingDB("admin").createUser({
-    user: "admin",
-    pwd: adminPassword,
-    roles: [{ role: "root", db: "admin" }]
+    user: "bootstrapAdmin",
+    pwd: bootstrapPassword,
+    roles: [
+      { role: "userAdminAnyDatabase", db: "admin" },
+      { role: "clusterAdmin", db: "admin" }
+    ]
   });
-  print("Admin user created on rs2.");
+  print("bootstrapAdmin created on rs0.");
 } catch (e) {
   const msg = e.toString();
   if (msg.includes("already exists") || msg.includes("DuplicateKey") || msg.includes("not authorized")) {
-    print("Admin user already exists on rs2, skipping.");
+    print("bootstrapAdmin already exists on rs0, skipping.");
   } else {
     throw e;
   }

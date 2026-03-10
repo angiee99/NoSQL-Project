@@ -15,7 +15,7 @@ until mongosh --host localhost --port "${MONGO_PORT}" \
   sleep 2
 done
 
-MONGO_ROOT_PASSWORD="${MONGO_ROOT_PASSWORD}" \
+MONGO_BOOTSTRAP_PASSWORD="${MONGO_BOOTSTRAP_PASSWORD}" \
 mongosh --host localhost --port "${MONGO_PORT}" "${MONGO_INIT_SCRIPT}"
 
 tail -f /var/log/mongodb.log
