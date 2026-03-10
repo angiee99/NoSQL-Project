@@ -1,17 +1,9 @@
 const adminPassword = process.env.MONGO_ROOT_PASSWORD;
-
-if (!adminPassword) {
-  throw new Error("MONGO_ROOT_PASSWORD not set");
-}
-
-let rsAlreadyInitialized = false;
+if (!adminPassword) throw new Error("MONGO_ROOT_PASSWORD not set");
 
 try {
   const status = rs.status();
-  if (status.ok) {
-    rsAlreadyInitialized = true;
-    print("Replica set rs0 already initialized.");
-  }
+  if (status.ok) print("Replica set rs0 already initialized.");
 } catch (e) {
   print("Initializing replica set rs0...");
   rs.initiate({
@@ -48,10 +40,8 @@ try {
   print("Admin user created on rs0.");
 } catch (e) {
   const msg = e.toString();
-  if (msg.includes("already exists") || msg.includes("DuplicateKey")) {
+  if (msg.includes("already exists") || msg.includes("DuplicateKey") || msg.includes("not authorized")) {
     print("Admin user already exists on rs0, skipping.");
-  } else if (msg.includes("not authorized")) {
-    print("Admin user likely already exists on rs0; skipping because auth is now enforced.");
   } else {
     throw e;
   }

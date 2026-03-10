@@ -14,6 +14,8 @@ wait_for_auth() {
 
 wait_for_auth cfg1 27019
 wait_for_auth mongo1 27017
+wait_for_auth mongo4 27017
+wait_for_auth mongo7 27017
 
 until mongosh --host mongos --port 27017 \
   -u admin -p "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin \
@@ -24,5 +26,3 @@ done
 mongosh --host mongos --port 27017 \
   -u admin -p "$MONGO_ROOT_PASSWORD" --authenticationDatabase admin \
   /scripts/init-cluster.js
-
-echo "Cluster bootstrap finished."

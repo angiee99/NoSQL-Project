@@ -6,75 +6,127 @@ services:
     container_name: mongo1
     hostname: mongo1
     restart: unless-stopped
-    entrypoint:
-      - /bin/bash
-      - /scripts/start-shard-primary.sh
+    entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
     environment:
       MONGO_REPLSET_NAME: rs0
       MONGO_PORT: "27017"
-      MONGO_INIT_SCRIPT: /scripts/init-rs.js
+      MONGO_INIT_SCRIPT: /scripts/init-rs0.js
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo1_data:/data/db
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
-      - ./scripts/init-rs.js:/scripts/init-rs.js:ro
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+      - ./scripts/init-rs0.js:/scripts/init-rs0.js:ro
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   mongo2:
     image: mongo:8
     container_name: mongo2
     hostname: mongo2
     restart: unless-stopped
-    command:
-      - mongod
-      - --shardsvr
-      - --replSet
-      - rs0
-      - --bind_ip_all
-      - --port
-      - "27017"
-      - --keyFile
-      - /run/secrets/mongo_key
+    command: ["mongod","--shardsvr","--replSet","rs0","--bind_ip_all","--port","27017","--keyFile","/run/secrets/mongo_key"]
     volumes:
       - mongo2_data:/data/db
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   mongo3:
     image: mongo:8
     container_name: mongo3
     hostname: mongo3
     restart: unless-stopped
-    command:
-      - mongod
-      - --shardsvr
-      - --replSet
-      - rs0
-      - --bind_ip_all
-      - --port
-      - "27017"
-      - --keyFile
-      - /run/secrets/mongo_key
+    command: ["mongod","--shardsvr","--replSet","rs0","--bind_ip_all","--port","27017","--keyFile","/run/secrets/mongo_key"]
     volumes:
       - mongo3_data:/data/db
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
+
+  mongo4:
+    image: mongo:8
+    container_name: mongo4
+    hostname: mongo4
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
+    environment:
+      MONGO_REPLSET_NAME: rs1
+      MONGO_PORT: "27017"
+      MONGO_INIT_SCRIPT: /scripts/init-rs1.js
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - mongo4_data:/data/db
+      - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
+      - ./scripts/init-rs1.js:/scripts/init-rs1.js:ro
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
+
+  mongo5:
+    image: mongo:8
+    container_name: mongo5
+    hostname: mongo5
+    restart: unless-stopped
+    command: ["mongod","--shardsvr","--replSet","rs1","--bind_ip_all","--port","27017","--keyFile","/run/secrets/mongo_key"]
+    volumes:
+      - mongo5_data:/data/db
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
+
+  mongo6:
+    image: mongo:8
+    container_name: mongo6
+    hostname: mongo6
+    restart: unless-stopped
+    command: ["mongod","--shardsvr","--replSet","rs1","--bind_ip_all","--port","27017","--keyFile","/run/secrets/mongo_key"]
+    volumes:
+      - mongo6_data:/data/db
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
+
+  mongo7:
+    image: mongo:8
+    container_name: mongo7
+    hostname: mongo7
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
+    environment:
+      MONGO_REPLSET_NAME: rs2
+      MONGO_PORT: "27017"
+      MONGO_INIT_SCRIPT: /scripts/init-rs2.js
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - mongo7_data:/data/db
+      - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
+      - ./scripts/init-rs2.js:/scripts/init-rs2.js:ro
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
+
+  mongo8:
+    image: mongo:8
+    container_name: mongo8
+    hostname: mongo8
+    restart: unless-stopped
+    command: ["mongod","--shardsvr","--replSet","rs2","--bind_ip_all","--port","27017","--keyFile","/run/secrets/mongo_key"]
+    volumes:
+      - mongo8_data:/data/db
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
+
+  mongo9:
+    image: mongo:8
+    container_name: mongo9
+    hostname: mongo9
+    restart: unless-stopped
+    command: ["mongod","--shardsvr","--replSet","rs2","--bind_ip_all","--port","27017","--keyFile","/run/secrets/mongo_key"]
+    volumes:
+      - mongo9_data:/data/db
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   cfg1:
     image: mongo:8
     container_name: cfg1
     hostname: cfg1
     restart: unless-stopped
-    entrypoint:
-      - /bin/bash
-      - /scripts/start-config-primary.sh
+    entrypoint: ["/bin/bash", "/scripts/start-config-primary.sh"]
     environment:
       MONGO_REPLSET_NAME: cfgRS
       MONGO_PORT: "27019"
@@ -84,54 +136,30 @@ services:
       - cfg1_data:/data/db
       - ./scripts/start-config-primary.sh:/scripts/start-config-primary.sh:ro
       - ./scripts/init-cfg.js:/scripts/init-cfg.js:ro
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   cfg2:
     image: mongo:8
     container_name: cfg2
     hostname: cfg2
     restart: unless-stopped
-    command:
-      - mongod
-      - --configsvr
-      - --replSet
-      - cfgRS
-      - --bind_ip_all
-      - --port
-      - "27019"
-      - --keyFile
-      - /run/secrets/mongo_key
+    command: ["mongod","--configsvr","--replSet","cfgRS","--bind_ip_all","--port","27019","--keyFile","/run/secrets/mongo_key"]
     volumes:
       - cfg2_data:/data/db
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   cfg3:
     image: mongo:8
     container_name: cfg3
     hostname: cfg3
     restart: unless-stopped
-    command:
-      - mongod
-      - --configsvr
-      - --replSet
-      - cfgRS
-      - --bind_ip_all
-      - --port
-      - "27019"
-      - --keyFile
-      - /run/secrets/mongo_key
+    command: ["mongod","--configsvr","--replSet","cfgRS","--bind_ip_all","--port","27019","--keyFile","/run/secrets/mongo_key"]
     volumes:
       - cfg3_data:/data/db
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   mongos:
     image: mongo:8
@@ -142,45 +170,30 @@ services:
       - cfg1
       - cfg2
       - cfg3
-    command:
-      - mongos
-      - --bind_ip_all
-      - --port
-      - "27017"
-      - --configdb
-      - cfgRS/cfg1:27019,cfg2:27019,cfg3:27019
-      - --keyFile
-      - /run/secrets/mongo_key
+    command: ["mongos","--bind_ip_all","--port","27017","--configdb","cfgRS/cfg1:27019,cfg2:27019,cfg3:27019","--keyFile","/run/secrets/mongo_key"]
     ports:
       - "27018:27017"
-    networks:
-      - mongo-cluster
-    secrets:
-      - mongo_key
+    networks: [mongo-cluster]
+    secrets: [mongo_key]
 
   cluster-bootstrap:
     image: mongo:8
     container_name: cluster-bootstrap
     hostname: cluster-bootstrap
+    restart: "no"
     depends_on:
       - mongos
       - mongo1
-      - mongo2
-      - mongo3
+      - mongo4
+      - mongo7
       - cfg1
-      - cfg2
-      - cfg3
-    restart: "no"
-    entrypoint:
-      - /bin/bash
-      - /scripts/bootstrap-cluster.sh
+    entrypoint: ["/bin/bash", "/scripts/bootstrap-cluster.sh"]
     environment:
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - ./scripts/bootstrap-cluster.sh:/scripts/bootstrap-cluster.sh:ro
       - ./scripts/init-cluster.js:/scripts/init-cluster.js:ro
-    networks:
-      - mongo-cluster
+    networks: [mongo-cluster]
 
 networks:
   mongo-cluster:
@@ -190,6 +203,12 @@ volumes:
   mongo1_data:
   mongo2_data:
   mongo3_data:
+  mongo4_data:
+  mongo5_data:
+  mongo6_data:
+  mongo7_data:
+  mongo8_data:
+  mongo9_data:
   cfg1_data:
   cfg2_data:
   cfg3_data:

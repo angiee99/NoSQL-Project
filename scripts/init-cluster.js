@@ -1,13 +1,20 @@
-const shardResult = db.adminCommand({ listShards: 1 });
-const existingShards = (shardResult.shards || []).map(s => s._id);
+function ensureShard(shardName, shardConnectionString) {
+  const result = db.adminCommand({ listShards: 1 });
+  const existing = (result.shards || []).map(s => s._id);
 
-if (existingShards.includes("rs0")) {
-  print("Shard rs0 already added, skipping.");
-} else {
-  print("Adding shard rs0...");
-  sh.addShard("rs0/mongo1:27017");
-  print("Shard rs0 added.");
+  if (existing.includes(shardName)) {
+    print(`Shard ${shardName} already added, skipping.`);
+    return;
+  }
+
+  print(`Adding shard ${shardName}...`);
+  sh.addShard(shardConnectionString);
+  print(`Shard ${shardName} added.`);
 }
+
+ensureShard("rs0", "rs0/mongo1:27017");
+ensureShard("rs1", "rs1/mongo4:27017");
+ensureShard("rs2", "rs2/mongo7:27017");
 
 print("Current shards:");
 printjson(db.adminCommand({ listShards: 1 }));
