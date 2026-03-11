@@ -196,6 +196,25 @@ services:
       - ./scripts/bootstrap-cluster.sh:/scripts/bootstrap-cluster.sh:ro
       - ./scripts/init-cluster.js:/scripts/init-cluster.js:ro
     networks: [mongo-cluster]
+  compass-web:
+    image: haohanyang/compass-web:latest
+    container_name: compass-web
+    hostname: compass-web
+    restart: unless-stopped
+    depends_on:
+      - mongos
+    ports:
+      - "8080:8080"
+    environment:
+      CW_PORT: "8080"
+      CW_HOST: "0.0.0.0"
+      CW_APP_NAME: "MongoDB Project Compass Web"
+      CW_ENABLE_EDIT_CONNECTIONS: "false"
+      CW_BASIC_AUTH_USERNAME: ${COMPASS_WEB_USERNAME}
+      CW_BASIC_AUTH_PASSWORD: ${COMPASS_WEB_PASSWORD}
+      CW_MONGO_URI: "mongodb://clusterAdminUser:${MONGO_CLUSTER_ADMIN_PASSWORD}@mongos:27017/admin?authSource=admin&directConnection=false&appName=CompassWeb&name=Semester-Project-Cluster"
+    networks:
+      - mongo-cluster
 
 networks:
   mongo-cluster:
