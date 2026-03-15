@@ -6,7 +6,7 @@ mongod \
   --replSet "${MONGO_REPLSET_NAME}" \
   --bind_ip_all \
   --port "${MONGO_PORT}" \
-  --keyFile /run/secrets/mongo_key \
+  --keyFile "${MONGO_KEYFILE_PATH}" \
   --fork \
   --logpath /var/log/mongodb.log
 
