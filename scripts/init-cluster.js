@@ -1,5 +1,10 @@
+function getAdminDb() {
+  return db.getSiblingDB("admin");
+}
+
 function ensureShard(shardName, shardConnectionString) {
-  const result = db.adminCommand({ listShards: 1 });
+  const adminDb = getAdminDb();
+  const result = adminDb.runCommand({ listShards: 1 });
   const existing = (result.shards || []).map(s => s._id);
 
   if (existing.includes(shardName)) {
@@ -7,33 +12,56 @@ function ensureShard(shardName, shardConnectionString) {
     return;
   }
 
-  print(`Adding shard ${shardName}...`);
-  sh.addShard(shardConnectionString);
+  print(`Adding shard ${shardName} with ${shardConnectionString} ...`);
+  const addResult = sh.addShard(shardConnectionString);
+
+  if (addResult.ok !== 1) {
+    throw new Error(`Failed to add shard ${shardName}: ${tojson(addResult)}`);
+  }
+
   print(`Shard ${shardName} added.`);
+}
+
+function userExists(targetDb, username) {
+  const usersInfo = targetDb.runCommand({
+    usersInfo: { user: username, db: targetDb.getName() }
+  });
+
+  return usersInfo.ok === 1 && Array.isArray(usersInfo.users) && usersInfo.users.length > 0;
 }
 
 function ensureUser(username, pwd, roles, targetDbName = "admin") {
   const targetDb = db.getSiblingDB(targetDbName);
-  try {
-    targetDb.createUser({
-      user: username,
-      pwd,
-      roles
-    });
-    print(`User ${username} created in ${targetDbName}.`);
-  } catch (e) {
-    const msg = e.toString();
-    if (msg.includes("already exists") || msg.includes("DuplicateKey")) {
-      print(`User ${username} already exists in ${targetDbName}, skipping.`);
-    } else {
-      throw e;
-    }
+
+  if (userExists(targetDb, username)) {
+    print(`User ${username} already exists in ${targetDbName}, skipping.`);
+    return;
   }
+
+  targetDb.createUser({
+    user: username,
+    pwd: pwd,
+    roles: roles
+  });
+
+  print(`User ${username} created in ${targetDbName}.`);
 }
 
-ensureShard("rs0", "rs0/mongo1:27017");
-ensureShard("rs1", "rs1/mongo4:27017");
-ensureShard("rs2", "rs2/mongo7:27017");
+
+ensureShard(
+  "rs0",
+  "rs0/mongo1:27017,mongo2:27017,mongo3:27017"
+);
+
+ensureShard(
+  "rs1",
+  "rs1/mongo4:27017,mongo5:27017,mongo6:27017"
+);
+
+ensureShard(
+  "rs2",
+  "rs2/mongo7:27017,mongo8:27017,mongo9:27017"
+);
 
 ensureUser(
   "clusterAdminUser",
@@ -65,6 +93,3 @@ ensureUser(
   ],
   "projectdb"
 );
-
-print("Current shards:");
-printjson(db.adminCommand({ listShards: 1 }));

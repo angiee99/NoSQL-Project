@@ -18,7 +18,8 @@ services:
     hostname: mongo1
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
     environment:
       MONGO_REPLSET_NAME: rs0
@@ -31,7 +32,14 @@ services:
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
       - ./scripts/init-rs0.js:/scripts/init-rs0.js:ro
+      - ./scripts/mongo-healthcheck.sh:/scripts/mongo-healthcheck.sh:ro
     networks: [mongo-cluster]
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash /scripts/mongo-healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   mongo2:
     image: mongo:8
@@ -39,7 +47,8 @@ services:
     hostname: mongo2
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -60,7 +69,8 @@ services:
     hostname: mongo3
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -81,7 +91,8 @@ services:
     hostname: mongo4
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
     environment:
       MONGO_REPLSET_NAME: rs1
@@ -94,7 +105,14 @@ services:
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
       - ./scripts/init-rs1.js:/scripts/init-rs1.js:ro
+      - ./scripts/mongo-healthcheck.sh:/scripts/mongo-healthcheck.sh:ro
     networks: [mongo-cluster]
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash /scripts/mongo-healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   mongo5:
     image: mongo:8
@@ -102,7 +120,8 @@ services:
     hostname: mongo5
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -123,7 +142,8 @@ services:
     hostname: mongo6
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -144,7 +164,8 @@ services:
     hostname: mongo7
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
     environment:
       MONGO_REPLSET_NAME: rs2
@@ -157,7 +178,14 @@ services:
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
       - ./scripts/init-rs2.js:/scripts/init-rs2.js:ro
+      - ./scripts/mongo-healthcheck.sh:/scripts/mongo-healthcheck.sh:ro
     networks: [mongo-cluster]
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash /scripts/mongo-healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   mongo8:
     image: mongo:8
@@ -165,7 +193,8 @@ services:
     hostname: mongo8
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -186,7 +215,8 @@ services:
     hostname: mongo9
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -207,7 +237,8 @@ services:
     hostname: cfg1
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     entrypoint: ["/bin/bash", "/scripts/start-config-primary.sh"]
     environment:
       MONGO_REPLSET_NAME: cfgRS
@@ -220,7 +251,14 @@ services:
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-config-primary.sh:/scripts/start-config-primary.sh:ro
       - ./scripts/init-cfg.js:/scripts/init-cfg.js:ro
+      - ./scripts/mongo-healthcheck.sh:/scripts/mongo-healthcheck.sh:ro
     networks: [mongo-cluster]
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash /scripts/mongo-healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   cfg2:
     image: mongo:8
@@ -228,7 +266,8 @@ services:
     hostname: cfg2
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -249,7 +288,8 @@ services:
     hostname: cfg3
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
+      mongo-keygen:
+        condition: service_completed_successfully
     command:
       [
         "mongod",
@@ -270,10 +310,14 @@ services:
     hostname: mongos
     restart: unless-stopped
     depends_on:
-      - mongo-keygen
-      - cfg1
-      - cfg2
-      - cfg3
+      mongo-keygen:
+        condition: service_completed_successfully
+      cfg1:
+        condition: service_started
+      cfg2:
+        condition: service_started
+      cfg3:
+        condition: service_started
     command:
       [
         "mongos",
@@ -284,9 +328,19 @@ services:
       ]
     ports:
       - "27018:27017"
+    environment:
+      MONGO_PORT: "27017"
+      MONGO_CLUSTER_ADMIN_PASSWORD: ${MONGO_CLUSTER_ADMIN_PASSWORD}
     volumes:
       - mongo_keyfile:/run/mongo-keyfile:ro
+      - ./scripts/mongos-healthcheck.sh:/scripts/mongos-healthcheck.sh:ro
     networks: [mongo-cluster]
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash /scripts/mongos-healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   cluster-bootstrap:
     image: mongo:8
@@ -294,11 +348,34 @@ services:
     hostname: cluster-bootstrap
     restart: "no"
     depends_on:
-      - mongos
-      - mongo1
-      - mongo4
-      - mongo7
-      - cfg1
+      mongo-keygen:
+        condition: service_completed_successfully
+      cfg1:
+        condition: service_started
+      cfg2:
+        condition: service_started
+      cfg3:
+        condition: service_started
+      mongo1:
+        condition: service_started
+      mongo2:
+        condition: service_started
+      mongo3:
+        condition: service_started
+      mongo4:
+        condition: service_started
+      mongo5:
+        condition: service_started
+      mongo6:
+        condition: service_started
+      mongo7:
+        condition: service_started
+      mongo8:
+        condition: service_started
+      mongo9:
+        condition: service_started
+      mongos:
+        condition: service_started
     entrypoint: ["/bin/bash", "/scripts/bootstrap-cluster.sh"]
     environment:
       MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
@@ -315,7 +392,8 @@ services:
     hostname: compass-web
     restart: unless-stopped
     depends_on:
-      - mongos
+      mongos:
+        condition: service_started
     ports:
       - "8080:8080"
     environment:
