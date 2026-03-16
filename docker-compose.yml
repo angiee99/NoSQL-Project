@@ -330,7 +330,7 @@ services:
       - "27018:27017"
     environment:
       MONGO_PORT: "27017"
-      MONGO_CLUSTER_ADMIN_PASSWORD: ${MONGO_CLUSTER_ADMIN_PASSWORD}
+      MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
     volumes:
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/mongos-healthcheck.sh:/scripts/mongos-healthcheck.sh:ro
