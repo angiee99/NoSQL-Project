@@ -40,7 +40,7 @@ try {
       { role: "clusterAdmin", db: "admin" }
     ]
   });
-  print("bootstrapAdmin created on rs0.");
+  print("bootstrapAdmin created on rs2.");
 } catch (e) {
   const msg = e.toString();
   if (msg.includes("already exists") || msg.includes("DuplicateKey") || msg.includes("not authorized")) {
