@@ -23,14 +23,23 @@ services:
     environment:
       MONGO_REPLSET_NAME: rs0
       MONGO_PORT: "27017"
-      MONGO_INIT_SCRIPT: /scripts/init-rs0.js
+      MONGO_INIT_SCRIPT: /scripts/init-replset.js
       MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
       MONGO_KEYFILE_PATH: /run/mongo-keyfile/mongo-keyfile
+
+      MONGO_RS_NAME: rs0
+      MONGO_LOCAL_HOST: mongo1:27017
+      MONGO_IS_CONFIGSVR: "false"
+      MONGO_RS_MEMBERS_JSON: >-
+        [{"_id":0,"host":"mongo1:27017","priority":10},
+        {"_id":1,"host":"mongo2:27017","priority":1},
+        {"_id":2,"host":"mongo3:27017","priority":1}]
+      MONGO_OTHER_PRIMARY_GRACE_MS: "10000"
     volumes:
       - mongo1_data:/data/db
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
-      - ./scripts/init-rs0.js:/scripts/init-rs0.js:ro
+      - ./scripts/init-replset.js:/scripts/init-replset.js:ro
     networks: [mongo-cluster]
 
   mongo2:
@@ -86,14 +95,23 @@ services:
     environment:
       MONGO_REPLSET_NAME: rs1
       MONGO_PORT: "27017"
-      MONGO_INIT_SCRIPT: /scripts/init-rs1.js
+      MONGO_INIT_SCRIPT: /scripts/init-replset.js
       MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
       MONGO_KEYFILE_PATH: /run/mongo-keyfile/mongo-keyfile
+
+      MONGO_RS_NAME: rs1
+      MONGO_LOCAL_HOST: mongo4:27017
+      MONGO_IS_CONFIGSVR: "false"
+      MONGO_RS_MEMBERS_JSON: >-
+        [{"_id":0,"host":"mongo4:27017","priority":10},
+        {"_id":1,"host":"mongo5:27017","priority":1},
+        {"_id":2,"host":"mongo6:27017","priority":1}]
+      MONGO_OTHER_PRIMARY_GRACE_MS: "10000"
     volumes:
       - mongo4_data:/data/db
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
-      - ./scripts/init-rs1.js:/scripts/init-rs1.js:ro
+      - ./scripts/init-replset.js:/scripts/init-replset.js:ro
     networks: [mongo-cluster]
 
   mongo5:
@@ -149,14 +167,23 @@ services:
     environment:
       MONGO_REPLSET_NAME: rs2
       MONGO_PORT: "27017"
-      MONGO_INIT_SCRIPT: /scripts/init-rs2.js
+      MONGO_INIT_SCRIPT: /scripts/init-replset.js
       MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
       MONGO_KEYFILE_PATH: /run/mongo-keyfile/mongo-keyfile
+
+      MONGO_RS_NAME: rs2
+      MONGO_LOCAL_HOST: mongo7:27017
+      MONGO_IS_CONFIGSVR: "false"
+      MONGO_RS_MEMBERS_JSON: >-
+        [{"_id":0,"host":"mongo7:27017","priority":10},
+        {"_id":1,"host":"mongo8:27017","priority":1},
+        {"_id":2,"host":"mongo9:27017","priority":1}]
+      MONGO_OTHER_PRIMARY_GRACE_MS: "10000"
     volumes:
       - mongo7_data:/data/db
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-shard-primary.sh:/scripts/start-shard-primary.sh:ro
-      - ./scripts/init-rs2.js:/scripts/init-rs2.js:ro
+      - ./scripts/init-replset.js:/scripts/init-replset.js:ro
     networks: [mongo-cluster]
 
   mongo8:
@@ -212,14 +239,22 @@ services:
     environment:
       MONGO_REPLSET_NAME: cfgRS
       MONGO_PORT: "27019"
-      MONGO_INIT_SCRIPT: /scripts/init-cfg.js
+      MONGO_INIT_SCRIPT: /scripts/init-replset.js
       MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
       MONGO_KEYFILE_PATH: /run/mongo-keyfile/mongo-keyfile
+      
+      MONGO_RS_NAME: cfgRS
+      MONGO_LOCAL_HOST: cfg1:27019
+      MONGO_IS_CONFIGSVR: "true"
+      MONGO_RS_MEMBERS_JSON: >-
+        [{"_id":0,"host":"cfg1:27019","priority":10},
+        {"_id":1,"host":"cfg2:27019","priority":1},
+        {"_id":2,"host":"cfg3:27019","priority":1}]
     volumes:
       - cfg1_data:/data/db
       - mongo_keyfile:/run/mongo-keyfile:ro
       - ./scripts/start-config-primary.sh:/scripts/start-config-primary.sh:ro
-      - ./scripts/init-cfg.js:/scripts/init-cfg.js:ro
+      - ./scripts/init-replset.js:/scripts/init-replset.js:ro
     networks: [mongo-cluster]
 
   cfg2:
