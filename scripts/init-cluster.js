@@ -31,9 +31,9 @@ function ensureUser(username, pwd, roles, targetDbName = "admin") {
   }
 }
 
-ensureShard("rs0", "rs0/mongo1:27017");
-ensureShard("rs1", "rs1/mongo4:27017");
-ensureShard("rs2", "rs2/mongo7:27017");
+ensureShard("rs0", "rs0/mongo1:27017,mongo2:27017,mongo3:27017");
+ensureShard("rs1", "rs1/mongo4:27017,mongo5:27017,mongo6:27017");
+ensureShard("rs2", "rs2/mongo7:27017,mongo8:27017,mongo9:27017");
 
 ensureUser(
   "clusterAdminUser",
@@ -49,7 +49,7 @@ ensureUser(
 
 ensureUser(
   "appWriter",
-  process.env.MONGO_APP_PASSWORD,
+  process.env.MONGO_APP_WRITE_PASSWORD,
   [
     { role: "readWrite", db: "projectdb" },
     { role: "dbAdmin", db: "projectdb" }
@@ -59,7 +59,7 @@ ensureUser(
 
 ensureUser(
   "appReader",
-  process.env.MONGO_APP_PASSWORD,
+  process.env.MONGO_APP_READ_PASSWORD,
   [
     { role: "read", db: "projectdb" }
   ],

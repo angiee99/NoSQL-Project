@@ -338,7 +338,8 @@ services:
     environment:
       MONGO_BOOTSTRAP_PASSWORD: ${MONGO_BOOTSTRAP_PASSWORD}
       MONGO_CLUSTER_ADMIN_PASSWORD: ${MONGO_CLUSTER_ADMIN_PASSWORD}
-      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD}
+      MONGO_APP_WRITE_PASSWORD: ${MONGO_APP_WRITE_PASSWORD}
+      MONGO_APP_READ_PASSWORD: ${MONGO_APP_READ_PASSWORD}
     volumes:
       - ./scripts/bootstrap-cluster.sh:/scripts/bootstrap-cluster.sh:ro
       - ./scripts/init-cluster.js:/scripts/init-cluster.js:ro
@@ -360,7 +361,7 @@ services:
       CW_ENABLE_EDIT_CONNECTIONS: "false"
       CW_BASIC_AUTH_USERNAME: ${COMPASS_WEB_USERNAME}
       CW_BASIC_AUTH_PASSWORD: ${COMPASS_WEB_PASSWORD}
-      CW_MONGO_URI: "mongodb://clusterAdminUser:${MONGO_CLUSTER_ADMIN_PASSWORD}@mongos:27017/admin?authSource=admin&directConnection=false&appName=CompassWeb&name=Semester-Project-Cluster"
+      CW_MONGO_URI: "mongodb://clusterAdminUser:${MONGO_CLUSTER_ADMIN_PASSWORD}@mongos:27017/admin?authSource=admin&appName=CompassWeb&name=Semester-Project-Cluster"
     networks: [mongo-cluster]
 
 networks:

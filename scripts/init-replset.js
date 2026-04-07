@@ -20,7 +20,7 @@ try {
 
 const WAIT_STEP_MS = 2000;
 const MAX_WAIT_MS = 180000;
-const OTHER_PRIMARY_GRACE_MS = 10000;
+const OTHER_PRIMARY_GRACE_MS = parseInt(process.env.MONGO_OTHER_PRIMARY_GRACE_MS || "10000", 10);
 
 const adminDb = db.getSiblingDB("admin");
 
