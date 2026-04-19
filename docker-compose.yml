@@ -343,6 +343,7 @@ services:
     volumes:
       - ./scripts/bootstrap-cluster.sh:/scripts/bootstrap-cluster.sh:ro
       - ./scripts/init-cluster.js:/scripts/init-cluster.js:ro
+      - ./scripts/init-projectdb.js:/scripts/init-projectdb.js:ro
     networks: [mongo-cluster]
 
   compass-web:

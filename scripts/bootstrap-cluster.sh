@@ -91,4 +91,15 @@ mongosh "mongodb://mongos:27017/admin" \
   --authenticationDatabase admin \
   /scripts/init-cluster.js
 
+
+echo "Running project database initialization via mongos..."
+
+mongosh "mongodb://mongos:27017/admin" \
+  -u "clusterAdminUser" \
+  -p "$MONGO_CLUSTER_ADMIN_PASSWORD" \
+  --authenticationDatabase admin \
+  /scripts/init-projectdb.js
+
+echo "Project database initialization finished successfully."
+
 echo "Cluster bootstrap finished successfully."
