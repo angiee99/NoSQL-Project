@@ -346,6 +346,25 @@ services:
       - ./scripts/init-projectdb.js:/scripts/init-projectdb.js:ro
     networks: [mongo-cluster]
 
+  data-import:
+    image: python:3.12-slim
+    container_name: data-import
+    hostname: data-import
+    restart: "no"
+    working_dir: /app
+    entrypoint: ["bash", "/app/import/run-import.sh"]
+    environment:
+      MONGO_URI: "mongodb://appWriter:${MONGO_APP_WRITE_PASSWORD}@mongos:27017/projectdb?authSource=projectdb"
+      PATIENTS_FILE: "/app/Data/patients.csv"
+      ENCOUNTERS_FILE: "/app/Data/encounters.csv"
+      CLAIMS_FILE: "/app/Data/claims_and_billing.csv"
+      IMPORT_BATCH_SIZE: "1000"
+    depends_on:
+      - cluster-bootstrap
+    volumes:
+      - ./Data:/app/Data:ro
+      - ./import:/app/import:ro
+    networks: [mongo-cluster]
   compass-web:
     image: haohanyang/compass-web:latest
     container_name: compass-web
