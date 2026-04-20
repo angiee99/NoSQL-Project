@@ -17,10 +17,45 @@ CLAIMS_FILE = os.environ.get("CLAIMS_FILE", "/app/Data/claims_and_billing.csv")
 MONGO_URI = os.environ["MONGO_URI"]
 BATCH_SIZE = int(os.environ.get("IMPORT_BATCH_SIZE", "1000"))
 
+EXPECTED_COUNTS = {
+    "patients": 60000,
+    "encounters": 70000,
+    "claims": 70000,
+}
 
 def log(msg: str) -> None:
     print(f"[data-import] {msg}", flush=True)
 
+def is_data_already_loaded(db) -> bool:
+    counts = {
+        "patients": db.patients.count_documents({}),
+        "encounters": db.encounters.count_documents({}),
+        "claims": db.claims.count_documents({}),
+    }
+
+    log(
+        "Current collection counts: "
+        f"patients={counts['patients']}, "
+        f"encounters={counts['encounters']}, "
+        f"claims={counts['claims']}"
+    )
+
+    if (
+        counts["patients"] >= EXPECTED_COUNTS["patients"]
+        and counts["encounters"] >= EXPECTED_COUNTS["encounters"]
+        and counts["claims"] >= EXPECTED_COUNTS["claims"]
+    ):
+        log(
+            "Data import not needed. Expected minimum counts are already present "
+            f"({EXPECTED_COUNTS})."
+        )
+        return True
+
+    log(
+        "Data import is needed because one or more collections are below the expected "
+        f"minimum counts ({EXPECTED_COUNTS})."
+    )
+    return False
 
 def is_missing(value) -> bool:
     if value is None:
@@ -243,6 +278,10 @@ def main():
     db = client[DB_NAME]
 
     log("Connected to MongoDB through mongos")
+
+    # checks if data is loaded (no sofisticated check, just if the expected count is there)
+    if is_data_already_loaded(db):
+        return
 
     patients_df = read_csv(PATIENTS_FILE)
     encounters_df = read_csv(ENCOUNTERS_FILE)
