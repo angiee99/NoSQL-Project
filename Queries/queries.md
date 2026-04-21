@@ -1,4 +1,4 @@
-## Aggreagation 
+## Aggregation 
 1. Claim status averages amounts
 Get the average billed and paid amounts for both all claim statuses (Paid/Denied)
 
@@ -165,8 +165,7 @@ db.claims.aggregate([
   },
   {
     $sort: {
-      denied_claims: -1,
-      denial_reason: 1
+      denied_claims: -1
     }
   }
 ]);
@@ -269,6 +268,38 @@ db.claims.aggregate([
   }
 ]);
 ```
+
+6. Diagnosis diversity by department 
+How many distinct diagnosis codes appear in each department, together with these diagnosis codes and the total number of encounters in department.
+
+```
+db.encounters.aggregate([
+  {
+    $group: {
+      _id: "$department",
+      encounter_count: { $sum: 1 },
+      distinct_diagnosis_codes: { $addToSet: "$diagnosis_code" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      department: "$_id",
+      encounter_count: 1,
+      distinct_diagnosis_count: { $size: "$distinct_diagnosis_codes" },
+      diagnosis_codes: "$distinct_diagnosis_codes"
+    }
+  },
+  {
+    $sort: {
+      distinct_diagnosis_count: -1,
+      encounter_count: -1,
+      department: 1
+    }
+  }
+]);
+```
+
 
 ## Embedded documenty
 
