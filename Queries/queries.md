@@ -300,6 +300,24 @@ db.encounters.aggregate([
 ]);
 ```
 
+other ideas:
+- denial rate per provider
+
+## Join
+1. Denied claims with patient demographics and encounter department
+
+2. Total revenue by insurer and department
+Calculate total billed amount, total paid amount, and claim count by:
+- insurance_provider
+- encounter department
+
+3. Insurance mismatch between patient insurance type and claim insurance provider
+
+4. Top billed patients by insurance provider in March 2025
+
+5. Emergency patients with hospitalization among all emergency patients by age group
+
+6. Claim outcome matrix by patient insurance type and encounter visit type
 
 ## Embedded documenty
 
@@ -457,3 +475,9 @@ db.claims.find(
   }
 ).sort({ billing_id: 1 });
 ```
+
+
+
+## CRUD
+
+## Indexes, Sharding, Replication, Cluster, Configs
