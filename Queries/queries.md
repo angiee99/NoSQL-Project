@@ -304,20 +304,335 @@ other ideas:
 - denial rate per provider
 
 ## Join
-1. Denied claims with patient demographics and encounter department
+1. Claims + patients + encounters
+Denied claims on 31.3.2025 with patient demographics and encounter department, including the count of denied claims and the total denied amount per patient group.
 
-2. Total revenue by insurer and department
-Calculate total billed amount, total paid amount, and claim count by:
-- insurance_provider
-- encounter department
+```
+db.claims.agregate([
+  {
+    $match: {
+      "claim.claim_status": "Denied",
+      "claim.claim_billing_date": {
+        $gte: ISODate("2025-03-31T00:00:00.000Z"),
+        $lt: ISODate("2025-04-01T00:00:00.000Z")
+      }
+    }
+  },
+  {
+    $lookup: {
+      from: "patients",
+      localField: "patient_id",
+      foreignField: "patient_id",
+      as: "patient"
+    }
+  },
+  {
+    $unwind: "$patient"
+  },
+  {
+    $lookup: {
+      from: "encounters",
+      localField: "encounter_id",
+      foreignField: "encounter_id",
+      as: "encounter"
+    }
+  },
+  {
+    $unwind: "$encounter"
+  },
+  {
+    $addFields: {
+      age_group: {
+        $switch: {
+          branches: [
+            { case: { $lt: ["$patient.age", 18] }, then: "0-17" },
+            { case: { $lt: ["$patient.age", 35] }, then: "18-34" },
+            { case: { $lt: ["$patient.age", 50] }, then: "35-49" },
+            { case: { $lt: ["$patient.age", 65] }, then: "50-64" }
+          ],
+          default: "65+"
+        }
+      }
+    }
+  },
+  {
+    $group: {
+      _id: {
+        department: "$encounter.department",
+        gender: "$patient.gender",
+        marital_status: "$patient.marital_status",
+        age_group: "$age_group"
+      },
+      denied_claim_count: { $sum: 1 },
+      total_billed_denied: { $sum: "$amounts.billed_amount" }    }
+  },
+  {
+    $project: {
+      _id: 0,
+      department: "$_id.department",
+      gender: "$_id.gender",
+      marital_status: "$_id.marital_status",
+      age_group: "$_id.age_group",
+      denied_claim_count: 1,
+      total_billed_denied: { $round: ["$total_billed_denied", 2] }    }
+  },
+  {
+    $sort: {
+      denied_claim_count: -1,
+      total_billed_denied: -1
+    }
+  }
+])
+```
+2.  Claims + encounters
+Departments that have had the most expensive claims (top 100) with their billed and paid financial values
 
-3. Insurance mismatch between patient insurance type and claim insurance provider
+```
+db.claims.aggregate([
+  {
+    $sort: {
+      "amounts.billed_amount": -1
+    }
+  },
+  {
+    $limit: 100
+  },
+  {
+    $lookup: {
+      from: "encounters",
+      localField: "encounter_id",
+      foreignField: "encounter_id",
+      as: "encounter"
+    }
+  },
+  {
+    $unwind: "$encounter"
+  },
+  {
+    $group: {
+      _id: "$encounter.department",
+      claim_count: { $sum: 1 },
+      total_billed_amount: { $sum: "$amounts.billed_amount" },
+      total_paid_amount: { $sum: "$amounts.paid_amount" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      department: "$_id",
+      claim_count: 1,
+      total_billed_amount: { $round: ["$total_billed_amount", 2] },
+      total_paid_amount: { $round: ["$total_paid_amount", 2]}
+    }
+  },
+  {
+    $sort: {
+      total_billed_amount: -1,
+      claim_count: -1
+    }
+  }
+])
+```
 
-4. Top billed patients by insurance provider in March 2025
 
-5. Emergency patients with hospitalization among all emergency patients by age group
+3. Claims + patients
+Top 10 billed patients of Medicare insurance provider in March 2025
+Filters claims first, sorts by billed amount, limits to 10, then joins only those records with patients and projects the patient information, billed and paid amount.
 
-6. Claim outcome matrix by patient insurance type and encounter visit type
+```
+db.claims.aggregate([
+  {
+    $match: {
+      insurance_provider: "Medicare",
+      "claim.claim_billing_date": {
+        $gte: ISODate("2025-03-01T00:00:00.000Z"),
+        $lt: ISODate("2025-04-01T00:00:00.000Z")
+      }
+    }
+  },
+  { $sort: { "amounts.billed_amount": -1 } },
+  { $limit: 10 },
+  {
+    $lookup: {
+      from: "patients",
+      localField: "patient_id",
+      foreignField: "patient_id",
+      as: "patient"
+    }
+  },
+  { $unwind: "$patient" },
+  {
+    $project: {
+      _id: 0,
+      patient_name: { $concat: ["$patient.first_name", " ", "$patient.last_name"] },
+      age: "$patient.age",
+      gender: "$patient.gender",
+      total_billed_amount: { $round: ["$amounts.billed_amount", 2] },
+      total_paid_amount: { $round: ["$amounts.paid_amount", 2] }
+    }
+  },
+  { $sort: { total_billed_amount: -1 } }
+])
+```
+
+4. Encounters + patients
+March 2025 emergency visits across patient insurance types, including both total emergency encounters, unique patients counts and average patient age.
+
+```
+db.encounters.aggregate([
+  {
+    $match: {
+      visit_type: "Emergency",
+      visit_date: {
+        $gte: ISODate("2025-03-01T00:00:00.000Z"),
+        $lt: ISODate("2025-04-01T00:00:00.000Z")
+      }
+    }
+  },
+  {
+    $lookup: {
+      from: "patients",
+      localField: "patient_id",
+      foreignField: "patient_id",
+      as: "patient"
+    }
+  },
+  {
+    $unwind: "$patient"
+  },
+  {
+    $group: {
+      _id: "$patient.insurance_type",
+      emergency_encounter_count: { $sum: 1 },
+      unique_patient_ids: { $addToSet: "$patient_id" },
+      avg_patient_age: { $avg: "$patient.age" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      insurance_type: "$_id",
+      emergency_encounter_count: 1,
+      unique_patient_count: { $size: "$unique_patient_ids" },
+      avg_patient_age: { $round: ["$avg_patient_age", 2] }
+    }
+  },
+  {
+    $sort: {
+      emergency_encounter_count: -1
+    }
+  }
+])
+```
+
+5. Injury-related visits by patient residence state in March 2025
+patients state + the reason for visit is connected to injury 
+group by state, project to patient count
+
+The query filters encounters to Accidental Injury visits first, then joins matching encounters with patients to access the nested field patient.contact.state. It groups by state and returns encounter count, unique patient count, and sorts by injury encounter count. 
+
+```
+db.encounters.aggregate([
+  {
+    $match: {
+      reason_for_visit: "Accidental Injury",
+      visit_date: {
+        $gte: ISODate("2025-03-01T00:00:00.000Z"),
+        $lt: ISODate("2025-04-01T00:00:00.000Z")
+      }
+    }
+  },
+  {
+    $lookup: {
+      from: "patients",
+      localField: "patient_id",
+      foreignField: "patient_id",
+      as: "patient"
+    }
+  },
+  {
+    $unwind: "$patient"
+  },
+  {
+    $group: {
+      _id: "$patient.contact.state",
+      injury_encounter_count: { $sum: 1 },
+      unique_patient_ids: { $addToSet: "$patient_id" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      state: "$_id",
+      injury_encounter_count: 1,
+      unique_patient_count: { $size: "$unique_patient_ids" }    }
+  },
+  {
+    $sort: {
+      injury_encounter_count: -1,
+      state: 1
+    }
+  }
+])
+```
+
+
+6. Encounters + claims
+Newborn claims stats
+
+This query summarizes billing outcomes for newborn admissions, including how many newborn encounters exist, how many related claims were denied, and the minimum, maximum, and average billed amount.
+
+Technical explanation:
+The query filters encounters to admission.admission_type = "Newborn", joins matching claims using encounter_id, and aggregates claim statistics over the joined records.
+```
+db.encounters.aggregate([
+  {
+    $match: {
+      "admission.admission_type": "Newborn"
+    }
+  },
+  {
+    $lookup: {
+      from: "claims",
+      localField: "encounter_id",
+      foreignField: "encounter_id",
+      as: "claim"
+    }
+  },
+  {
+    $unwind: "$claim"
+  },
+  {
+    $group: {
+      _id: null,
+      newborn_encounter_count: { $sum: 1 },
+      denied_claim_count: {
+        $sum: {
+          $cond: [
+            { $eq: ["$claim.claim.claim_status", "Denied"] },
+            1,
+            0
+          ]
+        }
+      },
+      min_billed_amount: { $min: "$claim.amounts.billed_amount" },
+      max_billed_amount: { $max: "$claim.amounts.billed_amount" },
+      avg_billed_amount: { $avg: "$claim.amounts.billed_amount" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      newborn_encounter_count: 1,
+      denied_claim_count: 1,
+      min_billed_amount: { $round: ["$min_billed_amount", 2] },
+      max_billed_amount: { $round: ["$max_billed_amount", 2] },
+      avg_billed_amount: { $round: ["$avg_billed_amount", 2] }
+    }
+  }
+]);
+```
+
 
 ## Embedded documenty
 
@@ -479,5 +794,11 @@ db.claims.find(
 
 
 ## CRUD
+
+Patients -> age < 18 marital status married 
+Add new encounter for patient with given patient id as a readmitted encounter for the same depatment as patient's last visit. 
+Add claim to that patient and encounter
+
+
 
 ## Indexes, Sharding, Replication, Cluster, Configs
