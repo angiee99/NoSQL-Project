@@ -793,12 +793,108 @@ db.claims.find(
 
 
 
-## CRUD
+## CRUD - insert, update, delete, merge
+1. Add new test patient
 
-Patients -> age < 18 marital status married 
-Add new encounter for patient with given patient id as a readmitted encounter for the same depatment as patient's last visit. 
-Add claim to that patient and encounter
+```
+db.patients.insertOne({
+  patient_id: "TEST_PATIENT_001",
+  first_name: "Test",
+  last_name: "Readmission",
+  dob: ISODate("1985-05-12T00:00:00.000Z"),
+  age: 39,
+  gender: "Female",
+  ethnicity: "Test",
+  insurance_type: "Medicare",
+  marital_status: "Single",
+  contact: {
+    address: "100 Test Street",
+    city: "Los Angeles",
+    state: "CA",
+    zip: "90001",
+    phone: "555-0100",
+    email: "test.readmission@example.com"
+  },
+  registration_date: ISODate("2025-03-15T00:00:00.000Z")
+});
+```
 
+2. Insert a test encounter for test patient
 
+```
+db.encounters.insertOne({
+  encounter_id: "TEST_ENCOUNTER_PREVIOUS_001",
+  patient_id: "TEST_PATIENT_001",
+  provider_id: "TEST_PROVIDER_001",
+  visit_date: ISODate("2025-03-20T09:00:00.000Z"),
+  visit_type: "Emergency",
+  department: "Cardiology",
+  reason_for_visit: "Chest pain",
+  diagnosis_code: "TEST-DX-001",
+  admission: {
+    admission_type: null,
+    discharge_date: null,
+    length_of_stay: null
+  },
+  status: "Completed",
+  readmitted_flag: false
+});
+```
 
+3. Insert a claim for test encounter and patient
+
+```
+db.claims.insertOne({
+  billing_id: "TEST_BILLING_001",
+  patient_id: "TEST_PATIENT_001",
+  encounter_id: "TEST_ENCOUNTER_PREVIOUS_001",
+  insurance_provider: "Medicare",
+  payment_method: "Insurance",
+  claim: {
+    claim_id: "TEST_CLAIM_001",
+    claim_billing_date: ISODate("2025-03-21T00:00:00.000Z"),
+    claim_status: "Paid",
+    denial_reason: null
+  },
+  amounts: {
+    billed_amount: NumberDecimal("1850.00"),
+    paid_amount: NumberDecimal("1500.00")
+  }
+});
+```
+
+4. Patients -> age < 18 marital status married or divorced -> set to Needs review
+This query finds underage patients whose marital status is either "Married" or "Widowed/Divorced/Separated" and updates them to "Needs Review" for data-quality control.
+
+```
+db.patients.updateMany(
+  {
+    age: { $lt: 18 },
+    marital_status: {
+      $in: ["Married", "Widowed/Divorced/Separated"]
+    }
+  },
+  {
+    $set: {
+      marital_status: "Needs Review"
+    }
+  }
+);
+```
+
+5. Create monthly claim summary using $merge
+6. Delete demo records safely
+```
+db.claims.deleteMany({
+  billing_id: /^TEST_/
+});
+
+db.encounters.deleteMany({
+  encounter_id: /^TEST_/
+});
+
+db.patients.deleteMany({
+  patient_id: /^TEST_/
+});
+```
 ## Indexes, Sharding, Replication, Cluster, Configs
