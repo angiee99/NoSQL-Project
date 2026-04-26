@@ -267,12 +267,13 @@ ensureSharded("claims", { patient_id: "hashed" });
 // Secondary indexes for queries
 // patients
 ensureIndex("patients", { patient_id: 1 }, { name: "patient_id_1" });
-ensureIndex("patients", { registration_date: 1 }, { name: "registration_date_1" });
+
 ensureIndex(
   "patients",
-  { insurance_type: 1, gender: 1 },
-  { name: "insurance_type_1_gender_1" }
+  { insurance_type: 1, "contact.state": 1 },
+  { name: "insurance_type_1_contact_state_1" }
 );
+
 ensureIndex(
   "patients",
   { "contact.state": 1, "contact.city": 1 },
@@ -281,63 +282,74 @@ ensureIndex(
 
 // encounters
 ensureIndex("encounters", { encounter_id: 1 }, { name: "encounter_id_1" });
+
 ensureIndex(
   "encounters",
   { patient_id: 1, visit_date: -1 },
   { name: "patient_id_1_visit_date_-1" }
 );
+
 ensureIndex(
   "encounters",
-  { department: 1, visit_type: 1 },
-  { name: "department_1_visit_type_1" }
+  { visit_type: 1, visit_date: 1 },
+  { name: "visit_type_1_visit_date_1" }
 );
+
 ensureIndex(
   "encounters",
-  { diagnosis_code: 1 },
-  { name: "diagnosis_code_1" }
+  { reason_for_visit: 1, visit_date: 1 },
+  { name: "reason_for_visit_1_visit_date_1" }
 );
+
 ensureIndex(
   "encounters",
-  { provider_id: 1 },
-  { name: "provider_id_1" }
+  { "admission.admission_type": 1, "admission.length_of_stay": 1 },
+  { name: "admission_type_1_length_of_stay_1" }
 );
+
 ensureIndex(
   "encounters",
-  { status: 1, readmitted_flag: 1 },
-  { name: "status_1_readmitted_flag_1" }
+  { department: 1, diagnosis_code: 1 },
+  { name: "department_1_diagnosis_code_1" }
 );
 
 // claims
 ensureIndex("claims", { billing_id: 1 }, { name: "billing_id_1" });
+
 ensureIndex(
   "claims",
   { encounter_id: 1 },
   { name: "encounter_id_1" }
 );
+
 ensureIndex(
   "claims",
   { patient_id: 1, encounter_id: 1 },
   { name: "patient_id_1_encounter_id_1" }
 );
+
 ensureIndex(
   "claims",
-  { patient_id: 1, "claim.claim_status": 1, "claim.claim_billing_date": -1 },
-  { name: "patient_id_1_claim_status_1_claim_billing_date_-1" }
+  { "claim.claim_status": 1, "claim.claim_billing_date": 1 },
+  { name: "claim_status_1_claim_billing_date_1" }
 );
+
 ensureIndex(
   "claims",
-  { payment_method: 1, insurance_provider: 1 },
-  { name: "payment_method_1_insurance_provider_1" }
+  { insurance_provider: 1, "claim.claim_billing_date": 1, "amounts.billed_amount": -1 },
+  { name: "insurance_provider_1_billing_date_1_billed_amount_-1" }
 );
+
+ensureIndex(
+  "claims",
+  { payment_method: 1, "claim.claim_id": 1, "claim.claim_billing_date": 1 },
+  { name: "payment_method_1_claim_id_1_claim_billing_date_1" }
+);
+
 ensureIndex(
   "claims",
   { "amounts.billed_amount": -1 },
   { name: "amounts_billed_amount_-1" }
-);
-ensureIndex(
-  "claims",
-  { "amounts.paid_amount": -1 },
-  { name: "amounts_paid_amount_-1" }
 );
 
 print("init-projectdb.js finished successfully.");
