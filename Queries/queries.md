@@ -966,5 +966,305 @@ db.claims.aggregate([
 ])
 ```
 
-## Indexes, Sharding, Replication, Cluster, Configs
-TODO
+## Indexes, Sharding, Replication, Cluster
+1. Run the query with no suitable index
+executionTimeMillis: 998
+totalKeysExamined: 30
+totalDocsExamined: 30
+
+```
+db.claims.find(
+  {
+    insurance_provider: "Medicare",
+    "claim.claim_billing_date": {
+      $gte: ISODate("2025-03-01T00:00:00.000Z"),
+      $lt: ISODate("2025-04-01T00:00:00.000Z")
+    }
+  }
+)
+.sort({ "claim.claim_billing_date": 1 })
+.limit(10)
+.explain("executionStats");
+```
+
+2. Create index for insurance provider and claim billing data and run the query with the index (with/without hint)
+```
+db.claims.createIndex(
+  {
+    insurance_provider: 1,
+    "claim.claim_billing_date": 1
+  },
+  {
+    name: "insurance_provider_1_claim_billing_date_1"
+  }
+);
+```
+
+executionTimeMillis: 77
+totalKeysExamined: 30
+totalDocsExamined: 30
+indexName: 'insurance_provider_1_claim_billing_date_1'
+
+```
+db.claims.find(
+  {
+    insurance_provider: "Medicare",
+    "claim.claim_billing_date": {
+      $gte: ISODate("2025-03-01T00:00:00.000Z"),
+      $lt: ISODate("2025-04-01T00:00:00.000Z")
+    }
+  }
+)
+.sort({ "claim.claim_billing_date": 1 })
+.limit(10)
+.hint("insurance_provider_1_claim_billing_date_1")
+.explain("executionStats");
+```
+
+3. Run the query with natural flag
+executionTimeMillis: 84
+totalKeysExamined: 0
+totalDocsExamined: 70000
+
+```
+db.claims.find(
+  {
+    insurance_provider: "Medicare",
+    "claim.claim_billing_date": {
+      $gte: ISODate("2025-03-01T00:00:00.000Z"),
+      $lt: ISODate("2025-04-01T00:00:00.000Z")
+    }
+  }
+)
+.sort({ "claim.claim_billing_date": 1 })
+.limit(10)
+.hint({ $natural: 1 })
+.explain("executionStats");
+```
+
+
+4. Show shard distribution 
+
+This command displays how documents and chunks are distributed across shards. It proves that the sharded collections are physically distributed in the MongoDB cluster.
+The command output shows that all three collections are evenly distributed, as each shard includes approximately 33%.
+
+e.g. patients
+Totals
+{
+  data: '22.62MiB',
+  docs: 70000,
+  chunks: 3,
+  'Shard rs0': [
+    '33.33 % data',
+    '33.33 % docs in cluster',
+    '338B avg obj size on shard'
+  ],
+  'Shard rs1': [
+    '33.36 % data',
+    '33.36 % docs in cluster',
+    '338B avg obj size on shard'
+  ],
+  'Shard rs2': [
+    '33.29 % data',
+    '33.29 % docs in cluster',
+    '338B avg obj size on shard'
+  ]
+}
+
+```
+db.patients.getShardDistribution();
+db.encounters.getShardDistribution();
+db.claims.getShardDistribution();
+```
+
+5. Sharding configurations
+These commands show which shards exist, which collections are sharded, what shard keys are used, and how many chunks are assigned to each shard.
+
+shards
+```
+command: 
+sh.status()
+
+output:
+shards
+[
+  {
+    _id: 'rs0',
+    host: 'rs0/mongo1:27017,mongo2:27017,mongo3:27017',
+    state: 1,
+    topologyTime: Timestamp({ t: 1775916743, i: 8 }),
+    replSetConfigVersion: Long('1')
+  },
+  {
+    _id: 'rs1',
+    host: 'rs1/mongo4:27017,mongo5:27017,mongo6:27017',
+    state: 1,
+    topologyTime: Timestamp({ t: 1775916745, i: 10 }),
+    replSetConfigVersion: Long('1')
+  },
+  {
+    _id: 'rs2',
+    host: 'rs2/mongo7:27017,mongo8:27017,mongo9:27017',
+    state: 1,
+    topologyTime: Timestamp({ t: 1775916749, i: 10 }),
+    replSetConfigVersion: Long('1')
+  }
+]
+```
+
+sharded collections
+```
+command: 
+use config;
+db.collections.find(
+  { _id: { $regex: "projectdb" } },
+  {
+    _id: 1,
+    key: 1,
+    unique: 1
+  }
+);
+
+output:
+[
+  {
+    _id: 'projectdb.claims',
+    key: { patient_id: 'hashed' },
+    unique: false
+  },
+  {
+    _id: 'projectdb.encounters',
+    key: { patient_id: 'hashed' },
+    unique: false
+  },
+  {
+    _id: 'projectdb.patients',
+    key: { patient_id: 'hashed' },
+    unique: false
+  }
+]
+```
+
+chunks - each namespace and shard has one chunk
+The query reads sharded collection metadata from config.collections, joins it with config.chunks through the collection UUID, and groups chunks by collection namespace and shard. This shows how the sharded data is distributed across the cluster.
+
+```
+command:
+use config;
+
+db.collections.aggregate([
+  {
+    $match: {
+      _id: { $regex: "^projectdb\\." }
+    }
+  },
+  {
+    $lookup: {
+      from: "chunks",
+      localField: "uuid",
+      foreignField: "uuid",
+      as: "chunks"
+    }
+  },
+  {
+    $unwind: "$chunks"
+  },
+  {
+    $group: {
+      _id: {
+        namespace: "$_id",
+        shard: "$chunks.shard"
+      },
+      chunk_count: { $sum: 1 }
+    }
+  },
+  {
+    $sort: {
+      "_id.namespace": 1,
+      "_id.shard": 1
+    }
+  }
+]);
+
+output:
+[
+  {
+    _id: { namespace: 'projectdb.claims', shard: 'rs0' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.claims', shard: 'rs1' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.claims', shard: 'rs2' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.encounters', shard: 'rs0' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.encounters', shard: 'rs1' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.encounters', shard: 'rs2' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.patients', shard: 'rs0' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.patients', shard: 'rs1' },
+    chunk_count: 1
+  },
+  {
+    _id: { namespace: 'projectdb.patients', shard: 'rs2' },
+    chunk_count: 1
+  }
+]
+```
+
+6. Simulate unavailable node and verify cluster behavior
+- Use rs.status(); to find a secondary node 
+rs0 -> mongo1 is primary, mongo2 and mongo3 are secondary 
+
+- stop a secondary node in replica set rs0 (mongo2)
+docker stop mongo2 
+
+- connect to shard primary and check status with rs.status();
+mongo2 is not reachable
+      name: 'mongo2:27017',
+      health: 0,
+      state: 8,
+      stateStr: '(not reachable/healthy)',
+
+- run command
+
+```
+use projectdb;
+
+db.claims.find(
+  {
+    insurance_provider: "Aetna",
+    "claim.claim_billing_date": {
+      $gte: ISODate("2025-02-01T00:00:00.000Z"),
+      $lt: ISODate("2025-03-01T00:00:00.000Z")
+    }
+  }
+).sort({"claim.claim_billing_date": -1})
+.limit(10);
+```
+
+- restart the node 
+docker start mongo2
+
+- check the status with rs.status();
+connect to mongo1 and run rs.status()
+  name: 'mongo2:27017',
+  health: 1,
+  state: 2,
+  stateStr: 'SECONDARY',
+  uptime: 7,
