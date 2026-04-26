@@ -863,7 +863,24 @@ db.claims.insertOne({
 });
 ```
 
-4. Patients -> age < 18 marital status married or divorced -> set to Needs review
+4. Delete demo records with regex match
+```
+db.claims.deleteMany({
+  billing_id: /^TEST_/
+});
+
+db.encounters.deleteMany({
+  encounter_id: /^TEST_/
+});
+
+db.patients.deleteMany({
+  patient_id: /^TEST_/
+});
+```
+
+5. Data correction -> if underage patient has an irrelevant marital status (e.g. married or divorced), 
+set the marital status to "Needs review"
+
 This query finds underage patients whose marital status is either "Married" or "Widowed/Divorced/Separated" and updates them to "Needs Review" for data-quality control.
 
 ```
@@ -882,19 +899,61 @@ db.patients.updateMany(
 );
 ```
 
-5. Create monthly claim summary using $merge
-6. Delete demo records safely
+
+6. Create a separate collection for monthly claim summary using merge 
+
 ```
-db.claims.deleteMany({
-  billing_id: /^TEST_/
-});
-
-db.encounters.deleteMany({
-  encounter_id: /^TEST_/
-});
-
-db.patients.deleteMany({
-  patient_id: /^TEST_/
-});
+db.claims.aggregate([
+  {
+    $match: {
+      "claim.claim_billing_date": {$ne: null}
+    }
+  },
+  {
+    $group: {
+      _id: {
+        month: {
+          $dateToString: {
+            format: "%Y-%m",
+            date: "$claim.claim_billing_date"
+          }
+        },
+        claim_status: "$claim.claim_status"
+      },
+      claim_count: { $sum: 1 },
+      total_billed_amount: { $sum: "$amounts.billed_amount" },
+      total_paid_amount: { $sum: "$amounts.paid_amount" },
+      avg_billed_amount: { $avg: "$amounts.billed_amount" },
+      avg_paid_amount: { $avg: "$amounts.paid_amount" }
+    }
+  },
+  {
+    $project: {
+      _id: {
+         $concat: ["$_id.month", " - ", "$_id.claim_status"] 
+      },
+      month: "$_id.month",
+      claim_status: "$_id.claim_status",
+      claim_count: 1,
+      total_billed_amount: { $round: ["$total_billed_amount", 2] },
+      total_paid_amount: { $round: ["$total_paid_amount", 2] },
+      avg_billed_amount: { $round: ["$avg_billed_amount", 2] },
+      avg_paid_amount: { $round: ["$avg_paid_amount", 2] }
+    }
+  },
+  {
+    $sort: {
+      month: 1
+    }
+  },
+  {
+    $merge: {
+      into: "monthly_claim_status_summary",
+      on: "_id",
+      whenMatched: "replace",
+      whenNotMatched: "insert"
+    }
+  }
+])
 ```
 ## Indexes, Sharding, Replication, Cluster, Configs
