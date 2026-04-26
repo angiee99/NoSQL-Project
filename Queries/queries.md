@@ -308,7 +308,7 @@ other ideas:
 Denied claims on 31.3.2025 with patient demographics and encounter department, including the count of denied claims and the total denied amount per patient group.
 
 ```
-db.claims.agregate([
+db.claims.aggregate([
   {
     $match: {
       "claim.claim_status": "Denied",
@@ -605,7 +605,7 @@ db.encounters.aggregate([
   {
     $group: {
       _id: null,
-      newborn_encounter_count: { $sum: 1 },
+      newborn_claim_count: { $sum: 1 },
       denied_claim_count: {
         $sum: {
           $cond: [
@@ -623,7 +623,7 @@ db.encounters.aggregate([
   {
     $project: {
       _id: 0,
-      newborn_encounter_count: 1,
+      newborn_claim_count: 1,
       denied_claim_count: 1,
       min_billed_amount: { $round: ["$min_billed_amount", 2] },
       max_billed_amount: { $round: ["$max_billed_amount", 2] },
@@ -672,11 +672,13 @@ db.patients.aggregate(
 ])
 ```
 
-2. Patients with incomplete nested address data
+2. Patients with incomplete nested address data from California state and Aetna insurance provider
 
 ```
 db.patients.find(
   {
+    insurance_type: "Aetna",
+    "contact.state": "CA",
     $or: [
       { "contact.address": { $in: [null, ""] } },
       { "contact.city": { $in: [null, ""] } }
@@ -763,12 +765,13 @@ db.claims.find(
 ).sort({ "claim.claim_billing_date": -1, billing_id: 1 });
 ```
 
-6. Claims with missing nested claim metadata
+6. Claims with missing nested claim metadata with insurance peyment method
 Either claim.claim_id or claim.claim_billing_date missing
 
 ```
 db.claims.find(
   {
+    payment_method: "Insurance",
     $or: [
       { "claim.claim_id": { $in: [null, ""] } },
       { "claim.claim_billing_date": null }
@@ -817,13 +820,15 @@ db.patients.insertOne({
   },
   registration_date: ISODate("2025-03-15T00:00:00.000Z")
 });
+
+db.patients.find({ patient_id: "TEST_PATIENT_001" });
 ```
 
 2. Insert a test encounter for test patient
 
 ```
 db.encounters.insertOne({
-  encounter_id: "TEST_ENCOUNTER_PREVIOUS_001",
+  encounter_id: "TEST_ENCOUNTER_001",
   patient_id: "TEST_PATIENT_001",
   provider_id: "TEST_PROVIDER_001",
   visit_date: ISODate("2025-03-20T09:00:00.000Z"),
@@ -839,6 +844,8 @@ db.encounters.insertOne({
   status: "Completed",
   readmitted_flag: false
 });
+
+db.encounters.find({ encounter_id: "TEST_ENCOUNTER_001" });
 ```
 
 3. Insert a claim for test encounter and patient
@@ -847,7 +854,7 @@ db.encounters.insertOne({
 db.claims.insertOne({
   billing_id: "TEST_BILLING_001",
   patient_id: "TEST_PATIENT_001",
-  encounter_id: "TEST_ENCOUNTER_PREVIOUS_001",
+  encounter_id: "TEST_ENCOUNTER_001",
   insurance_provider: "Medicare",
   payment_method: "Insurance",
   claim: {
@@ -861,6 +868,8 @@ db.claims.insertOne({
     paid_amount: NumberDecimal("1500.00")
   }
 });
+
+db.claims.find({ billing_id: "TEST_BILLING_001" });
 ```
 
 4. Delete demo records with regex match
@@ -956,4 +965,6 @@ db.claims.aggregate([
   }
 ])
 ```
+
 ## Indexes, Sharding, Replication, Cluster, Configs
+TODO
