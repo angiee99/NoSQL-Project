@@ -1234,14 +1234,14 @@ rs0 -> mongo1 is primary, mongo2 and mongo3 are secondary
 - stop a secondary node in replica set rs0 (mongo2)
 docker stop mongo2 
 
-- connect to shard primary and check status with rs.status();
+- connect to shard primary (mongo1) and check status with rs.status();
 mongo2 is not reachable
       name: 'mongo2:27017',
       health: 0,
       state: 8,
       stateStr: '(not reachable/healthy)',
 
-- run command
+- run command to test if it is possible to read data
 
 ```
 use projectdb;
