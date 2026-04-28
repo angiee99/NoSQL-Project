@@ -16,6 +16,7 @@ services:
     image: mongo:8
     container_name: mongo1
     hostname: mongo1
+    init: true
     restart: unless-stopped
     depends_on:
       - mongo-keygen
@@ -47,6 +48,7 @@ services:
     container_name: mongo2
     hostname: mongo2
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -68,6 +70,7 @@ services:
     container_name: mongo3
     hostname: mongo3
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -89,6 +92,7 @@ services:
     container_name: mongo4
     hostname: mongo4
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
@@ -119,6 +123,7 @@ services:
     container_name: mongo5
     hostname: mongo5
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -140,6 +145,7 @@ services:
     container_name: mongo6
     hostname: mongo6
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -161,6 +167,7 @@ services:
     container_name: mongo7
     hostname: mongo7
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     entrypoint: ["/bin/bash", "/scripts/start-shard-primary.sh"]
@@ -191,6 +198,7 @@ services:
     container_name: mongo8
     hostname: mongo8
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -212,6 +220,7 @@ services:
     container_name: mongo9
     hostname: mongo9
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -233,6 +242,7 @@ services:
     container_name: cfg1
     hostname: cfg1
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     entrypoint: ["/bin/bash", "/scripts/start-config-primary.sh"]
@@ -262,6 +272,7 @@ services:
     container_name: cfg2
     hostname: cfg2
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -283,6 +294,7 @@ services:
     container_name: cfg3
     hostname: cfg3
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
     command:
@@ -304,6 +316,7 @@ services:
     container_name: mongos
     hostname: mongos
     restart: unless-stopped
+    init: true
     depends_on:
       - mongo-keygen
       - cfg1
