@@ -259,7 +259,7 @@ db.claims.aggregate([
           }
         }
       ],
-      top_payment_methods: [
+      by_payment_methods: [
         {
           $group: {
             _id: "$payment_method",
@@ -280,9 +280,6 @@ db.claims.aggregate([
             total_paid: -1,
             payment_method: 1
           }
-        },
-        {
-          $limit: 5
         }
       ]
     }
@@ -330,7 +327,7 @@ db.encounters.aggregate([
 
 ### 2.1 Zamítnuté nároky s demografickými údaji pacienta a oddělením
 
-**Zadání:** Pro zamítnuté pojistné nároky ze dne 31. 3. 2025 propojte kolekce `claims`, `patients` a `encounters`. Výsledky seskupte podle oddělení, pohlaví, rodinného stavu a věkové skupiny pacienta.
+**Zadání:** Pro zamítnuté pojistné nároky ze dne 31. 3. 2025 propojte kolekce `claims`, `patients` a `encounters`. Výsledky seskupte podle oddělení, pohlaví a věkové skupiny pacienta.
 
 **Řešení v MongoDB:**
 
@@ -387,7 +384,6 @@ db.claims.aggregate([
       _id: {
         department: "$encounter.department",
         gender: "$patient.gender",
-        marital_status: "$patient.marital_status",
         age_group: "$age_group"
       },
       denied_claim_count: { $sum: 1 },
@@ -399,7 +395,6 @@ db.claims.aggregate([
       _id: 0,
       department: "$_id.department",
       gender: "$_id.gender",
-      marital_status: "$_id.marital_status",
       age_group: "$_id.age_group",
       denied_claim_count: 1,
       total_billed_denied: { $round: ["$total_billed_denied", 2] }
@@ -504,6 +499,7 @@ db.claims.aggregate([
   {
     $project: {
       _id: 0,
+      patient_id: 1,
       patient_name: { $concat: ["$patient.first_name", " ", "$patient.last_name"] },
       age: "$patient.age",
       gender: "$patient.gender",
@@ -517,9 +513,9 @@ db.claims.aggregate([
 ]);
 ```
 
-### 2.4 Urgentní návštěvy podle typu pojištění pacienta
+### 2.4 Pohotovostní návštěvy podle typu pojištění pacienta
 
-**Zadání:** Pro urgentní návštěvy v březnu 2025 zjistěte počet návštěv, počet unikátních pacientů a průměrný věk pacientů podle typu jejich pojištění.
+**Zadání:** Pro pohotovostní návštěvy v březnu 2025 zjistěte počet návštěv, počet unikátních pacientů a průměrný věk pacientů podle typu jejich pojištění.
 
 **Řešení v MongoDB:**
 
