@@ -1,45 +1,59 @@
-## Aggregation 
-1. Claim status averages amounts
-Get the average billed and paid amounts for both all claim statuses (Paid/Denied)
+# Dotazy
 
+Dotazy pracují se třemi kolekcemi `patients`, `encounters` a `claims`.
+
+Před spuštěním dotazů je vhodné přepnout se do projektové databáze:
+
+```js
+use projectdb;
 ```
-db.claims.aggregate(
-  [
-    {
-      $match: {
+Tato část je v následujících příkazech vynechána.
+
+## 1. Agregační dotazy
+
+### 1.1 Průměrné částky podle stavu pojistného nároku
+
+**Zadání:** Zjistěte průměrnou účtovanou částku, průměrnou zaplacenou částku a počet záznamů pro jednotlivé stavy pojistných nároků - `Paid` a `Denied`.
+
+**Řešení v MongoDB:**
+
+```js
+db.claims.aggregate([
+  {
+    $match: {
       "claim.claim_status": { $ne: null }
-      }
-    },
-    {
-      $group: {
-        _id: '$claim.claim_status',
-        avg_billed: {
-          $avg: '$amounts.billed_amount'
-        },
-        avg_paid: {
-          $avg: '$amounts.paid_amount'
-        },
-        claim_count: { $sum: 1 }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        claim_status: "$_id",
-        claim_count: 1,
-        avg_billed: { $round: ["$avg_billed", 2] },
-        avg_paid: { $round: ["$avg_paid", 2] }
-      }
-    },
-    { $sort: { claim_count: -1 } }
-  ]
-);
+    }
+  },
+  {
+    $group: {
+      _id: "$claim.claim_status",
+      avg_billed: { $avg: "$amounts.billed_amount" },
+      avg_paid: { $avg: "$amounts.paid_amount" },
+      claim_count: { $sum: 1 }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      claim_status: "$_id",
+      claim_count: 1,
+      avg_billed: { $round: ["$avg_billed", 2] },
+      avg_paid: { $round: ["$avg_paid", 2] }
+    }
+  },
+  {
+    $sort: { claim_count: -1 }
+  }
+]);
 ```
 
-2. Top insurance by state
-The most popular insurance type per state with the count of patients with that insurance sorted by state
+### 1.2 Nejčastější typ pojištění podle státu
 
-```
+**Zadání:** Pro každý stát zjistěte, který typ pojištění je mezi pacienty nejčastější, a vraťte také počet pacientů s tímto typem pojištění.
+
+**Řešení v MongoDB:**
+
+```js
 db.patients.aggregate([
   {
     $match: {
@@ -80,13 +94,16 @@ db.patients.aggregate([
   {
     $sort: { state: 1 }
   }
-])
+]);
 ```
 
-3. Emergency stay and readmission
-Analyze emergency admissions by length of stay and count how many of them were later marked as readmitted.
+### 1.3 Délka urgentní hospitalizace a míra readmise
 
-```
+**Zadání:** Analyzujte urgentní hospitalizace podle délky pobytu. Pro každou délku pobytu spočítejte počet urgentních návštěv, počet readmisí a procentuální míru readmise.
+
+**Řešení v MongoDB:**
+
+```js
 db.encounters.aggregate([
   {
     $match: {
@@ -135,10 +152,13 @@ db.encounters.aggregate([
 ]);
 ```
 
-4. Denial reason financial analysis
-Show which denial reasons are most common and how much billed money is associated with each denial reason.
+### 1.4 Finanční analýza zamítnutých nároků podle důvodu zamítnutí
 
-```
+**Zadání:** Zjistěte, které důvody zamítnutí pojistných nároků jsou nejčastější a jaká celková i průměrná účtovaná částka je s nimi spojena.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.aggregate([
   {
     $match: {
@@ -164,17 +184,18 @@ db.claims.aggregate([
     }
   },
   {
-    $sort: {
-      denied_claims: -1
-    }
+    $sort: { denied_claims: -1 }
   }
 ]);
 ```
 
-5. March billing report
-Billing report for March 2025 with overall and average billed/paid, total billed/paid by status and statistics on used payment method.
+### 1.5 Měsíční billing report za březen 2025
 
-```
+**Zadání:** Vytvořte souhrnný report pojistných nároků za březen 2025. Report má obsahovat celkový přehled, rozpad podle stavu nároku a nejvýznamnější platební metody podle zaplacené částky.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.aggregate([
   {
     $match: {
@@ -269,10 +290,13 @@ db.claims.aggregate([
 ]);
 ```
 
-6. Diagnosis diversity by department 
-How many distinct diagnosis codes appear in each department, together with these diagnosis codes and the total number of encounters in department.
+### 1.6 Rozmanitost diagnóz podle oddělení
 
-```
+**Zadání:** Pro každé nemocniční oddělení zjistěte počet návštěv, počet unikátních diagnóz a seznam kódů diagnóz, které se na daném oddělení vyskytují.
+
+**Řešení v MongoDB:**
+
+```js
 db.encounters.aggregate([
   {
     $group: {
@@ -300,14 +324,17 @@ db.encounters.aggregate([
 ]);
 ```
 
-other ideas:
-- denial rate per provider
+---
 
-## Join
-1. Claims + patients + encounters
-Denied claims on 31.3.2025 with patient demographics and encounter department, including the count of denied claims and the total denied amount per patient group.
+## 2. Dotazy nad propojenými kolekcemi
 
-```
+### 2.1 Zamítnuté nároky s demografickými údaji pacienta a oddělením
+
+**Zadání:** Pro zamítnuté pojistné nároky ze dne 31. 3. 2025 propojte kolekce `claims`, `patients` a `encounters`. Výsledky seskupte podle oddělení, pohlaví, rodinného stavu a věkové skupiny pacienta.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.aggregate([
   {
     $match: {
@@ -364,7 +391,8 @@ db.claims.aggregate([
         age_group: "$age_group"
       },
       denied_claim_count: { $sum: 1 },
-      total_billed_denied: { $sum: "$amounts.billed_amount" }    }
+      total_billed_denied: { $sum: "$amounts.billed_amount" }
+    }
   },
   {
     $project: {
@@ -374,7 +402,8 @@ db.claims.aggregate([
       marital_status: "$_id.marital_status",
       age_group: "$_id.age_group",
       denied_claim_count: 1,
-      total_billed_denied: { $round: ["$total_billed_denied", 2] }    }
+      total_billed_denied: { $round: ["$total_billed_denied", 2] }
+    }
   },
   {
     $sort: {
@@ -382,12 +411,16 @@ db.claims.aggregate([
       total_billed_denied: -1
     }
   }
-])
+]);
 ```
-2.  Claims + encounters
-Departments that have had the most expensive claims (top 100) with their billed and paid financial values
 
-```
+### 2.2 Oddělení s nejdražšími pojistnými nároky
+
+**Zadání:** Najděte 100 nejdražších pojistných nároků podle účtované částky, propojte je s návštěvami a zjistěte, na která oddělení tyto nároky připadají.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.aggregate([
   {
     $sort: {
@@ -422,7 +455,7 @@ db.claims.aggregate([
       department: "$_id",
       claim_count: 1,
       total_billed_amount: { $round: ["$total_billed_amount", 2] },
-      total_paid_amount: { $round: ["$total_paid_amount", 2]}
+      total_paid_amount: { $round: ["$total_paid_amount", 2] }
     }
   },
   {
@@ -431,15 +464,16 @@ db.claims.aggregate([
       claim_count: -1
     }
   }
-])
+]);
 ```
 
+### 2.3 Top 10 pacientů pojištěných přes Medicare podle účtované částky
 
-3. Claims + patients
-Top 10 billed patients of Medicare insurance provider in March 2025
-Filters claims first, sorts by billed amount, limits to 10, then joins only those records with patients and projects the patient information, billed and paid amount.
+**Zadání:** Najděte deset nejvyšších pojistných nároků za březen 2025 u pojišťovny Medicare a doplňte k nim základní údaje o pacientech.
 
-```
+**Řešení v MongoDB:**
+
+```js
 db.claims.aggregate([
   {
     $match: {
@@ -450,8 +484,12 @@ db.claims.aggregate([
       }
     }
   },
-  { $sort: { "amounts.billed_amount": -1 } },
-  { $limit: 10 },
+  {
+    $sort: { "amounts.billed_amount": -1 }
+  },
+  {
+    $limit: 10
+  },
   {
     $lookup: {
       from: "patients",
@@ -460,7 +498,9 @@ db.claims.aggregate([
       as: "patient"
     }
   },
-  { $unwind: "$patient" },
+  {
+    $unwind: "$patient"
+  },
   {
     $project: {
       _id: 0,
@@ -471,14 +511,19 @@ db.claims.aggregate([
       total_paid_amount: { $round: ["$amounts.paid_amount", 2] }
     }
   },
-  { $sort: { total_billed_amount: -1 } }
-])
+  {
+    $sort: { total_billed_amount: -1 }
+  }
+]);
 ```
 
-4. Encounters + patients
-March 2025 emergency visits across patient insurance types, including both total emergency encounters, unique patients counts and average patient age.
+### 2.4 Urgentní návštěvy podle typu pojištění pacienta
 
-```
+**Zadání:** Pro urgentní návštěvy v březnu 2025 zjistěte počet návštěv, počet unikátních pacientů a průměrný věk pacientů podle typu jejich pojištění.
+
+**Řešení v MongoDB:**
+
+```js
 db.encounters.aggregate([
   {
     $match: {
@@ -522,16 +567,16 @@ db.encounters.aggregate([
       emergency_encounter_count: -1
     }
   }
-])
+]);
 ```
 
-5. Injury-related visits by patient residence state in March 2025
-patients state + the reason for visit is connected to injury 
-group by state, project to patient count
+### 2.5 Úrazy podle státu bydliště pacienta
 
-The query filters encounters to Accidental Injury visits first, then joins matching encounters with patients to access the nested field patient.contact.state. It groups by state and returns encounter count, unique patient count, and sorts by injury encounter count. 
+**Zadání:** Pro návštěvy související s úrazem v březnu 2025 zjistěte, ze kterých států pacienti pocházejí. Výsledek má obsahovat počet návštěv a počet unikátních pacientů podle státu.
 
-```
+**Řešení v MongoDB:**
+
+```js
 db.encounters.aggregate([
   {
     $match: {
@@ -565,7 +610,8 @@ db.encounters.aggregate([
       _id: 0,
       state: "$_id",
       injury_encounter_count: 1,
-      unique_patient_count: { $size: "$unique_patient_ids" }    }
+      unique_patient_count: { $size: "$unique_patient_ids" }
+    }
   },
   {
     $sort: {
@@ -573,18 +619,16 @@ db.encounters.aggregate([
       state: 1
     }
   }
-])
+]);
 ```
 
+### 2.6 Statistiky pojistných nároků u novorozeneckých hospitalizací
 
-6. Encounters + claims
-Newborn claims stats
+**Zadání:** Pro hospitalizace typu `Newborn` zjistěte počet souvisejících pojistných nároků, počet zamítnutých nároků a minimální, maximální a průměrnou účtovanou částku.
 
-This query summarizes billing outcomes for newborn admissions, including how many newborn encounters exist, how many related claims were denied, and the minimum, maximum, and average billed amount.
+**Řešení v MongoDB:**
 
-Technical explanation:
-The query filters encounters to admission.admission_type = "Newborn", joins matching claims using encounter_id, and aggregates claim statistics over the joined records.
-```
+```js
 db.encounters.aggregate([
   {
     $match: {
@@ -633,16 +677,18 @@ db.encounters.aggregate([
 ]);
 ```
 
+---
 
-## Embedded documenty
+## 3. Dotazy nad vnořenými dokumenty
 
-1. Patients with missing both phone and email by insurance type
-Find the count of patients with missing contact information (both email and phone) by their insurance type. 
-This checks if there is any trend with missing information through the insurance customers.
+### 3.1 Pacienti bez e-mailu i telefonu podle typu pojištění
 
-```
-db.patients.aggregate(
-[
+**Zadání:** Zjistěte, kolik pacientů nemá vyplněný telefon ani e-mail. Výsledek seskupte podle typu pojištění.
+
+**Řešení v MongoDB:**
+
+```js
+db.patients.aggregate([
   {
     $match: {
       "contact.email": { $in: [null, ""] },
@@ -652,9 +698,7 @@ db.patients.aggregate(
   {
     $group: {
       _id: "$insurance_type",
-      no_contact_information: {
-        $sum: 1
-      }
+      no_contact_information: { $sum: 1 }
     }
   },
   {
@@ -669,12 +713,16 @@ db.patients.aggregate(
       no_contact_information: 1
     }
   }
-])
+]);
 ```
 
-2. Patients with incomplete nested address data from California state and Aetna insurance provider
+### 3.2 Pacienti z Kalifornie s neúplnou adresou a pojištěním Aetna
 
-```
+**Zadání:** Najděte pacienty s pojištěním `Aetna`, kteří mají stát bydliště `CA`, ale v adrese jim chybí ulice nebo město.
+
+**Řešení v MongoDB:**
+
+```js
 db.patients.find(
   {
     insurance_type: "Aetna",
@@ -687,9 +735,13 @@ db.patients.find(
 ).sort({ patient_id: 1 });
 ```
 
-3. Latest Maternity admissions encounters with maximum admission stay, sorted by longest stay
+### 3.3 Nejdelší mateřské hospitalizace
 
-```
+**Zadání:** Najděte poslední hospitalizace typu `Maternity`, které mají vyplněné datum propuštění a délku pobytu. Výsledek seřaďte od nejdelšího pobytu.
+
+**Řešení v MongoDB:**
+
+```js
 db.encounters.find(
   {
     "admission.admission_type": "Maternity",
@@ -712,14 +764,18 @@ db.encounters.find(
 )
 .sort({
   "admission.length_of_stay": -1,
-  "admission.discharge_date": -1,
+  "admission.discharge_date": -1
 })
 .limit(10);
 ```
 
-4. Find denied claims for specific day (30.03.2025) with patient, encounter and claim id, payment method, denial reason, and billed amount.
+### 3.4 Zamítnuté pojistné nároky za konkrétní den
 
-```
+**Zadání:** Najděte zamítnuté pojistné nároky ze dne 30. 3. 2025 a zobrazte identifikaci pacienta, návštěvy, nároku, platební metodu, důvod zamítnutí a účtovanou částku.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.find(
   {
     "claim.claim_status": "Denied",
@@ -731,18 +787,22 @@ db.claims.find(
   {
     _id: 0,
     patient_id: 1,
-    encounter_id: 1, 
-    payment_method: 1, 
-    "claim.claim_id": 1, 
+    encounter_id: 1,
+    payment_method: 1,
+    "claim.claim_id": 1,
     "claim.denial_reason": 1,
     "amounts.billed_amount": 1
   }
-)
+);
 ```
 
-5. Paid amount < Billed amount
-Find paid claims where the paid amount is lower than the billed amount
-```
+### 3.5 Zaplacené nároky, kde zaplacená částka je nižší než účtovaná
+
+**Zadání:** Najděte pojistné nároky se stavem `Paid`, u kterých je zaplacená částka nižší než účtovaná částka.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.find(
   {
     "claim.claim_status": "Paid",
@@ -765,10 +825,13 @@ db.claims.find(
 ).sort({ "claim.claim_billing_date": -1, billing_id: 1 });
 ```
 
-6. Claims with missing nested claim metadata with insurance peyment method
-Either claim.claim_id or claim.claim_billing_date missing
+### 3.6 Nároky s chybějícími vnořenými metadaty
 
-```
+**Zadání:** Najděte pojistné nároky placené metodou `Insurance`, kterým chybí identifikátor nároku nebo datum fakturace ve vnořeném objektu `claim`.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.find(
   {
     payment_method: "Insurance",
@@ -794,12 +857,17 @@ db.claims.find(
 ).sort({ billing_id: 1 });
 ```
 
+---
 
+## 4. Práce s daty: insert, update, delete a merge
 
-## CRUD - insert, update, delete, merge
-1. Add new test patient
+### 4.1 Vložení testovacího pacienta
 
-```
+**Zadání:** Vložte do kolekce `patients` nového testovacího pacienta a následně ověřte, že byl dokument uložen.
+
+**Řešení v MongoDB:**
+
+```js
 db.patients.insertOne({
   patient_id: "TEST_PATIENT_001",
   first_name: "Test",
@@ -824,9 +892,13 @@ db.patients.insertOne({
 db.patients.find({ patient_id: "TEST_PATIENT_001" });
 ```
 
-2. Insert a test encounter for test patient
+### 4.2 Vložení testovací návštěvy pro testovacího pacienta
 
-```
+**Zadání:** Pro testovacího pacienta vložte záznam o urgentní návštěvě a následně ověřte, že byl dokument uložen v kolekci `encounters`.
+
+**Řešení v MongoDB:**
+
+```js
 db.encounters.insertOne({
   encounter_id: "TEST_ENCOUNTER_001",
   patient_id: "TEST_PATIENT_001",
@@ -848,9 +920,13 @@ db.encounters.insertOne({
 db.encounters.find({ encounter_id: "TEST_ENCOUNTER_001" });
 ```
 
-3. Insert a claim for test encounter and patient
+### 4.3 Vložení testovacího pojistného nároku
 
-```
+**Zadání:** Vložte pojistný nárok navázaný na testovacího pacienta a testovací návštěvu. Následně ověřte vložení podle `billing_id`.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.insertOne({
   billing_id: "TEST_BILLING_001",
   patient_id: "TEST_PATIENT_001",
@@ -872,8 +948,13 @@ db.claims.insertOne({
 db.claims.find({ billing_id: "TEST_BILLING_001" });
 ```
 
-4. Delete demo records with regex match
-```
+### 4.4 Smazání testovacích dat
+
+**Zadání:** Smažte všechny testovací záznamy vytvořené v předchozích dotazech a ověřte, že už v kolekcích nejsou žádné dokumenty s prefixem `TEST_`.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.deleteMany({
   billing_id: /^TEST_/
 });
@@ -885,14 +966,19 @@ db.encounters.deleteMany({
 db.patients.deleteMany({
   patient_id: /^TEST_/
 });
+
+db.claims.find({ billing_id: /^TEST_/ });
+db.encounters.find({ encounter_id: /^TEST_/ });
+db.patients.find({ patient_id: /^TEST_/ });
 ```
 
-5. Data correction -> if underage patient has an irrelevant marital status (e.g. married or divorced), 
-set the marital status to "Needs review"
+### 4.5 Oprava nekonzistentního rodinného stavu u nezletilých pacientů
 
-This query finds underage patients whose marital status is either "Married" or "Widowed/Divorced/Separated" and updates them to "Needs Review" for data-quality control.
+**Zadání:** Najděte nezletilé pacienty, kteří mají uveden rodinný stav `Married` nebo `Widowed/Divorced/Separated`, a označte jejich rodinný stav hodnotou `Needs Review` pro další kontrolu kvality dat.
 
-```
+**Řešení v MongoDB:**
+
+```js
 db.patients.updateMany(
   {
     age: { $lt: 18 },
@@ -906,16 +992,32 @@ db.patients.updateMany(
     }
   }
 );
+
+db.patients.find(
+  {
+    age: { $lt: 18 },
+    marital_status: "Needs Review"
+  },
+  {
+    _id: 0,
+    patient_id: 1,
+    age: 1,
+    marital_status: 1
+  }
+);
 ```
 
+### 4.6 Vytvoření měsíční souhrnné kolekce pomocí `$merge`
 
-6. Create a separate collection for monthly claim summary using merge 
+**Zadání:** Vytvořte samostatnou kolekci `monthly_claim_status_summary`, která bude obsahovat měsíční souhrny pojistných nároků podle stavu nároku.
 
-```
+**Řešení v MongoDB:**
+
+```js
 db.claims.aggregate([
   {
     $match: {
-      "claim.claim_billing_date": {$ne: null}
+      "claim.claim_billing_date": { $ne: null }
     }
   },
   {
@@ -939,7 +1041,7 @@ db.claims.aggregate([
   {
     $project: {
       _id: {
-         $concat: ["$_id.month", " - ", "$_id.claim_status"] 
+        $concat: ["$_id.month", " - ", "$_id.claim_status"]
       },
       month: "$_id.month",
       claim_status: "$_id.claim_status",
@@ -963,16 +1065,22 @@ db.claims.aggregate([
       whenNotMatched: "insert"
     }
   }
-])
+]);
+
+db.monthly_claim_status_summary.find().sort({ month: 1, claim_status: 1 });
 ```
 
-## Indexes, Sharding, Replication, Cluster
-1. Run the query with no suitable index
-executionTimeMillis: 998
-totalKeysExamined: 30
-totalDocsExamined: 30
+---
 
-```
+## 5. Indexy, sharding, replikace a cluster
+
+### 5.1 Analýza dotazu bez vhodného indexu
+
+**Zadání:** Spusťte dotaz nad kolekcí `claims`, který filtruje podle pojišťovny a data fakturace. Pomocí `explain("executionStats")` zjistěte, jak se dotaz provádí bez vynucení konkrétního indexu.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.find(
   {
     insurance_provider: "Medicare",
@@ -987,8 +1095,15 @@ db.claims.find(
 .explain("executionStats");
 ```
 
-2. Create index for insurance provider and claim billing data and run the query with the index (with/without hint)
-```
+**Poznámka:** Tento dotaz slouží jako výchozí měření pro porovnání s dotazem, který použije složený index.
+
+### 5.2 Vytvoření složeného indexu a spuštění dotazu s `hint`
+
+**Zadání:** Vytvořte složený index nad poli `insurance_provider` a `claim.claim_billing_date`. Poté spusťte stejný dotaz s vynucením tohoto indexu pomocí `hint`.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.createIndex(
   {
     insurance_provider: 1,
@@ -998,14 +1113,7 @@ db.claims.createIndex(
     name: "insurance_provider_1_claim_billing_date_1"
   }
 );
-```
 
-executionTimeMillis: 77
-totalKeysExamined: 30
-totalDocsExamined: 30
-indexName: 'insurance_provider_1_claim_billing_date_1'
-
-```
 db.claims.find(
   {
     insurance_provider: "Medicare",
@@ -1021,12 +1129,15 @@ db.claims.find(
 .explain("executionStats");
 ```
 
-3. Run the query with natural flag
-executionTimeMillis: 84
-totalKeysExamined: 0
-totalDocsExamined: 70000
+**Poznámka:** Výsledek `explain` umožňuje porovnat počet prohledaných klíčů, počet prohledaných dokumentů a použitý index.
 
-```
+### 5.3 Vynucené sekvenční čtení pomocí `$natural`
+
+**Zadání:** Spusťte stejný dotaz znovu, ale tentokrát vynuťte přirozené čtení kolekce pomocí `hint({ $natural: 1 })`. Výsledek použijte pro srovnání s indexovaným dotazem.
+
+**Řešení v MongoDB:**
+
+```js
 db.claims.find(
   {
     insurance_provider: "Medicare",
@@ -1042,114 +1153,46 @@ db.claims.find(
 .explain("executionStats");
 ```
 
+**Poznámka:** Tento dotaz ukazuje rozdíl mezi použitím indexu a čtením dokumentů v přirozeném pořadí uložení.
 
-4. Show shard distribution 
+### 5.4 Zobrazení distribuce dat mezi shardy
 
-This command displays how documents and chunks are distributed across shards. It proves that the sharded collections are physically distributed in the MongoDB cluster.
-The command output shows that all three collections are evenly distributed, as each shard includes approximately 33%.
+**Zadání:** Ověřte, jak jsou dokumenty a chunky rozdělené mezi jednotlivé shardy pro kolekce `patients`, `encounters` a `claims`.
 
-e.g. patients
-Totals
-{
-  data: '22.62MiB',
-  docs: 70000,
-  chunks: 3,
-  'Shard rs0': [
-    '33.33 % data',
-    '33.33 % docs in cluster',
-    '338B avg obj size on shard'
-  ],
-  'Shard rs1': [
-    '33.36 % data',
-    '33.36 % docs in cluster',
-    '338B avg obj size on shard'
-  ],
-  'Shard rs2': [
-    '33.29 % data',
-    '33.29 % docs in cluster',
-    '338B avg obj size on shard'
-  ]
-}
+**Řešení v MongoDB:**
 
-```
+```js
 db.patients.getShardDistribution();
 db.encounters.getShardDistribution();
 db.claims.getShardDistribution();
 ```
 
-5. Sharding configurations
-These commands show which shards exist, which collections are sharded, what shard keys are used, and how many chunks are assigned to each shard.
+**Poznámka:** Výstup ukazuje, kolik dat, dokumentů a chunků je umístěno na jednotlivých shardech. V tomto projektu jsou kolekce shardované podle hashovaného klíče `patient_id`, což podporuje rovnoměrnější rozložení záznamů mezi tři shardy.
 
-shards
-```
-command: 
-sh.status()
+### 5.5 Konfigurace shardingu a počet chunků podle shardu
 
-output:
-shards
-[
-  {
-    _id: 'rs0',
-    host: 'rs0/mongo1:27017,mongo2:27017,mongo3:27017',
-    state: 1,
-    topologyTime: Timestamp({ t: 1775916743, i: 8 }),
-    replSetConfigVersion: Long('1')
-  },
-  {
-    _id: 'rs1',
-    host: 'rs1/mongo4:27017,mongo5:27017,mongo6:27017',
-    state: 1,
-    topologyTime: Timestamp({ t: 1775916745, i: 10 }),
-    replSetConfigVersion: Long('1')
-  },
-  {
-    _id: 'rs2',
-    host: 'rs2/mongo7:27017,mongo8:27017,mongo9:27017',
-    state: 1,
-    topologyTime: Timestamp({ t: 1775916749, i: 10 }),
-    replSetConfigVersion: Long('1')
-  }
-]
+**Zadání:** Zobrazte existující shardy, shardované kolekce, použité shard key a počet chunků pro jednotlivé kombinace kolekce a shardu.
+
+**Řešení v MongoDB:**
+
+```js
+sh.status();
 ```
 
-sharded collections
-```
-command: 
+```js
 use config;
+
 db.collections.find(
-  { _id: { $regex: "projectdb" } },
+  { _id: { $regex: "^projectdb\\." } },
   {
     _id: 1,
     key: 1,
     unique: 1
   }
 );
-
-output:
-[
-  {
-    _id: 'projectdb.claims',
-    key: { patient_id: 'hashed' },
-    unique: false
-  },
-  {
-    _id: 'projectdb.encounters',
-    key: { patient_id: 'hashed' },
-    unique: false
-  },
-  {
-    _id: 'projectdb.patients',
-    key: { patient_id: 'hashed' },
-    unique: false
-  }
-]
 ```
 
-chunks - each namespace and shard has one chunk
-The query reads sharded collection metadata from config.collections, joins it with config.chunks through the collection UUID, and groups chunks by collection namespace and shard. This shows how the sharded data is distributed across the cluster.
-
-```
-command:
+```js
 use config;
 
 db.collections.aggregate([
@@ -1185,65 +1228,29 @@ db.collections.aggregate([
     }
   }
 ]);
-
-output:
-[
-  {
-    _id: { namespace: 'projectdb.claims', shard: 'rs0' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.claims', shard: 'rs1' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.claims', shard: 'rs2' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.encounters', shard: 'rs0' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.encounters', shard: 'rs1' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.encounters', shard: 'rs2' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.patients', shard: 'rs0' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.patients', shard: 'rs1' },
-    chunk_count: 1
-  },
-  {
-    _id: { namespace: 'projectdb.patients', shard: 'rs2' },
-    chunk_count: 1
-  }
-]
 ```
 
-6. Simulate unavailable node and verify cluster behavior
-- Use rs.status(); to find a secondary node 
-rs0 -> mongo1 is primary, mongo2 and mongo3 are secondary 
+**Poznámka:** Dotazy do databáze `config` ověřují, že kolekce projektu jsou skutečně shardované a že MongoDB ukládá metadata o jejich distribuci mezi shardy.
 
-- stop a secondary node in replica set rs0 (mongo2)
-docker stop mongo2 
+### 5.6 Simulace výpadku sekundárního uzlu a ověření dostupnosti čtení
 
-- connect to shard primary (mongo1) and check status with rs.status();
-mongo2 is not reachable
-      name: 'mongo2:27017',
-      health: 0,
-      state: 8,
-      stateStr: '(not reachable/healthy)',
+**Zadání:** Ověřte chování clusteru při výpadku sekundárního uzlu v replica setu. Nejprve zjistěte stav replica setu, poté zastavte sekundární uzel, ověřte jeho nedostupnost a spusťte čtecí dotaz nad daty. Nakonec uzel znovu spusťte a zkontrolujte jeho návrat do stavu `SECONDARY`.
 
-- run command to test if it is possible to read data
+**Řešení v MongoDB a Dockeru:**
 
+```js
+rs.status();
 ```
+
+```bash
+docker stop mongo2
+```
+
+```js
+rs.status();
+```
+
+```js
 use projectdb;
 
 db.claims.find(
@@ -1254,17 +1261,17 @@ db.claims.find(
       $lt: ISODate("2025-03-01T00:00:00.000Z")
     }
   }
-).sort({"claim.claim_billing_date": -1})
+)
+.sort({ "claim.claim_billing_date": -1 })
 .limit(10);
 ```
 
-- restart the node 
+```bash
 docker start mongo2
+```
 
-- check the status with rs.status();
-connect to mongo1 and run rs.status()
-  name: 'mongo2:27017',
-  health: 1,
-  state: 2,
-  stateStr: 'SECONDARY',
-  uptime: 7,
+```js
+rs.status();
+```
+
+**Poznámka:** Tento postup ověřuje, že výpadek sekundárního uzlu nezastaví čtení dat, protože replica set má stále dostupný primární uzel a další repliku. Po restartu se zastavený uzel opět připojí do replica setu jako sekundární uzel.
