@@ -712,145 +712,516 @@ db.patients.aggregate([
 ]);
 ```
 
-### 3.2 Pacienti z Kalifornie s neúplnou adresou a pojištěním Aetna
+### 3.2 Pacienti s pojištěním Aetna a neúplnou adresou
 
-**Zadání:** Najděte pacienty s pojištěním `Aetna`, kteří mají stát bydliště `CA`, ale v adrese jim chybí ulice nebo město.
-
-**Řešení v MongoDB:**
-
-```js
-db.patients.find(
-  {
-    insurance_type: "Aetna",
-    "contact.state": "CA",
-    $or: [
-      { "contact.address": { $in: [null, ""] } },
-      { "contact.city": { $in: [null, ""] } }
-    ]
-  }
-).sort({ patient_id: 1 });
-```
-
-### 3.3 Nejdelší mateřské hospitalizace
-
-**Zadání:** Najděte poslední hospitalizace typu `Maternity`, které mají vyplněné datum propuštění a délku pobytu. Výsledek seřaďte od nejdelšího pobytu.
+**Zadání:** Zjistěte, jak neúplné adresní údaje (město a samotná adresa) se vyskytují u pacientů s pojištěním Aetna. Výsledek seskupte podle chybějících polí, uveďte počet dotčených pacientů, jejich podíl ze všech pacientů s pojištěním Aetna a průměrný věk v dané skupině.
 
 **Řešení v MongoDB:**
 
 ```js
-db.encounters.find(
+db.patients.aggregate([
   {
-    "admission.admission_type": "Maternity",
-    "admission.discharge_date": { $ne: null },
-    "admission.length_of_stay": { $ne: null }
+    $match: {
+      insurance_type: "Aetna"
+    }
   },
   {
-    _id: 0,
-    encounter_id: 1,
-    patient_id: 1,
-    provider_id: 1,
-    visit_date: 1,
-    department: 1,
-    reason_for_visit: 1,
-    diagnosis_code: 1,
-    readmitted_flag: 1,
-    "admission.discharge_date": 1,
-    "admission.length_of_stay": 1
+    $addFields: {
+      is_missing_address: {
+        $eq: [
+          { $trim: { input: { $ifNull: ["$contact.address", ""] } } },
+          ""
+        ]
+      },
+      is_missing_city: {
+        $eq: [
+          { $trim: { input: { $ifNull: ["$contact.city", ""] } } },
+          ""
+        ]
+      }
+    }
+  },
+  {
+    $addFields: {
+      missing_address_fields: {
+        $concatArrays: [
+          {
+            $cond: [
+              "$is_missing_address",
+              ["contact.address"],
+              []
+            ]
+          },
+          {
+            $cond: [
+              "$is_missing_city",
+              ["contact.city"],
+              []
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    $facet: {
+      total_aetna: [
+        {
+          $count: "total_patients"
+        }
+      ],
+      incomplete_address_summary: [
+        {
+          $match: {
+            $expr: {
+              $gt: [
+                { $size: "$missing_address_fields" },
+                0
+              ]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: "$missing_address_fields",
+            affected_patients: { $sum: 1 },
+            avg_age: { $avg: "$age" }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            missing_fields: "$_id",
+            affected_patients: 1,
+            avg_age: { $round: ["$avg_age", 2] }
+          }
+        },
+        {
+          $sort: {
+            affected_patients: -1
+          }
+        }
+      ]
+    }
+  },
+  {
+    $unwind: "$total_aetna"
+  },
+  {
+    $unwind: "$incomplete_address_summary"
+  },
+  {
+    $project: {
+      _id: 0,
+      missing_fields: "$incomplete_address_summary.missing_fields",
+      affected_patients: "$incomplete_address_summary.affected_patients",
+      total_aetna_patients: "$total_aetna.total_patients",
+      share_of_aetna_pct: {
+        $round: [
+          {
+            $multiply: [
+              {
+                $divide: [
+                  "$incomplete_address_summary.affected_patients",
+                  "$total_aetna.total_patients"
+                ]
+              },
+              100
+            ]
+          },
+          2
+        ]
+      },
+      avg_age: "$incomplete_address_summary.avg_age"
+    }
+  },
+  {
+    $sort: {
+      affected_patients: -1
+    }
   }
-)
-.sort({
-  "admission.length_of_stay": -1,
-  "admission.discharge_date": -1
-})
-.limit(10);
+]);
+```
+
+### 3.3 Analýza mateřských hospitalizací podle měsíce propuštění
+
+**Zadání:** Analyzujte hospitalizace typu Maternity podle měsíce hospitalizace. Pro každý měsíc zobrazte počet hospitalizací, počet unikátních pacientů, průměrnou délku hospitalizace, rozdělení hospitalizací podle počtu dnů, počet readmisí a procentuální míru readmise.
+
+**Řešení v MongoDB:**
+
+```js
+db.encounters.aggregate([
+  {
+    $match: {
+      "admission.admission_type": "Maternity",
+      "admission.discharge_date": { $ne: null },
+      "admission.length_of_stay": { $in: [1, 2, 3] }
+    }
+  },
+  {
+    $addFields: {
+      discharge_month: {
+        $dateToString: {
+          format: "%Y-%m",
+          date: "$admission.discharge_date"
+        }
+      }
+    }
+  },
+  {
+    $group: {
+      _id: "$discharge_month",
+      maternity_encounters: { $sum: 1 },
+      unique_patient_ids: { $addToSet: "$patient_id" },
+      avg_length_of_stay: { $avg: "$admission.length_of_stay" },
+
+      one_day_stays: {
+        $sum: {
+          $cond: [
+            { $eq: ["$admission.length_of_stay", 1] },
+            1,
+            0
+          ]
+        }
+      },
+      two_day_stays: {
+        $sum: {
+          $cond: [
+            { $eq: ["$admission.length_of_stay", 2] },
+            1,
+            0
+          ]
+        }
+      },
+      three_day_stays: {
+        $sum: {
+          $cond: [
+            { $eq: ["$admission.length_of_stay", 3] },
+            1,
+            0
+          ]
+        }
+      },
+
+      readmitted_cases: {
+        $sum: {
+          $cond: [
+            { $eq: ["$readmitted_flag", true] },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    $addFields: {
+      unique_patient_count: {
+        $size: "$unique_patient_ids"
+      },
+      readmission_rate_pct: {
+        $round: [
+          {
+            $multiply: [
+              {
+                $divide: ["$readmitted_cases", "$maternity_encounters"]
+              },
+              100
+            ]
+          },
+          2
+        ]
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      discharge_month: "$_id",
+      maternity_encounters: 1,
+      unique_patient_count: 1,
+      avg_length_of_stay: {
+        $round: ["$avg_length_of_stay", 2]
+      },
+      one_day_stays: 1,
+      two_day_stays: 1,
+      three_day_stays: 1,
+      readmitted_cases: 1,
+      readmission_rate_pct: 1
+    }
+  },
+  {
+    $sort: {
+      discharge_month: 1
+    }
+  }
+]);
 ```
 
 ### 3.4 Zamítnuté pojistné nároky za konkrétní den
 
-**Zadání:** Najděte zamítnuté pojistné nároky ze dne 30. 3. 2025 a zobrazte identifikaci pacienta, návštěvy, nároku, platební metodu, důvod zamítnutí a účtovanou částku.
+**Zadání:** Analyzujte zamítnuté pojistné nároky ze dne 30. 3. 2025. Výsledek seskupte podle důvodu zamítnutí, pojišťovny a platební metody. Pro každou skupinu zobrazte počet zamítnutých nároků, celkovou účtovanou částku zamítnutých nároků, průměrnou účtovanou částku a nejvyšší účtovanou částku.
 
 **Řešení v MongoDB:**
 
 ```js
-db.claims.find(
+db.claims.aggregate([
   {
-    "claim.claim_status": "Denied",
-    "claim.claim_billing_date": {
-      $gte: ISODate("2025-03-30T00:00:00.000Z"),
-      $lt: ISODate("2025-03-31T00:00:00.000Z")
+    $match: {
+      "claim.claim_status": "Denied",
+      "claim.claim_billing_date": {
+        $gte: ISODate("2025-03-30T00:00:00.000Z"),
+        $lt: ISODate("2025-03-31T00:00:00.000Z")
+      },
+      "claim.denial_reason": {
+        $nin: [null, ""]
+      }
     }
   },
   {
-    _id: 0,
-    patient_id: 1,
-    encounter_id: 1,
-    payment_method: 1,
-    "claim.claim_id": 1,
-    "claim.denial_reason": 1,
-    "amounts.billed_amount": 1
+    $group: {
+      _id: {
+        denial_reason: "$claim.denial_reason",
+        insurance_provider: "$insurance_provider",
+        payment_method: "$payment_method"
+      },
+      denied_claim_count: {
+        $sum: 1
+      },
+      total_denied_billed_amount: {
+        $sum: "$amounts.billed_amount"
+      },
+      avg_billed_amount: {
+        $avg: "$amounts.billed_amount"
+      },
+      max_billed_amount: {
+        $max: "$amounts.billed_amount"
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      denial_reason: "$_id.denial_reason",
+      insurance_provider: "$_id.insurance_provider",
+      payment_method: "$_id.payment_method",
+      denied_claim_count: 1,
+      total_denied_billed_amount: {
+        $round: ["$total_denied_billed_amount", 2]
+      },
+      avg_billed_amount: {
+        $round: ["$avg_billed_amount", 2]
+      },
+      max_billed_amount: {
+        $round: ["$max_billed_amount", 2]
+      }
+    }
+  },
+  {
+    $sort: {
+      total_denied_billed_amount: -1,
+      denied_claim_count: -1
+    }
   }
+]);
+```
+
+### 3.5 Analýza částečně zaplacených pojistných nároků
+
+**Zadání:** Analyzujte pojistné nároky se stavem `Paid`, u kterých je zaplacená částka nižší než účtovaná částka. Výsledek seskupte podle pojišťovny a platební metody. Pro každou skupinu zobrazte počet částečně zaplacených nároků, celkovou účtovanou částku, celkovou zaplacenou částku, celkový nedoplatek, průměrný nedoplatek a průměrné procento zaplacení.
+
+**Řešení v MongoDB:**
+
+```js
+db.claims.aggregate([
+  {
+    $match: {
+      "claim.claim_status": "Paid",
+      $expr: {
+        $lt: [
+          "$amounts.paid_amount",
+          "$amounts.billed_amount"
+        ]
+      }
+    }
+  },
+  {
+    $addFields: {
+      underpaid_amount: {
+        $subtract: [
+          "$amounts.billed_amount",
+          "$amounts.paid_amount"
+        ]
+      },
+      paid_ratio_pct: {
+        $multiply: [
+          {
+            $divide: [
+              "$amounts.paid_amount",
+              "$amounts.billed_amount"
+            ]
+          },
+          100
+        ]
+      }
+    }
+  },
+  {
+    $group: {
+      _id: {
+        insurance_provider: "$insurance_provider",
+        payment_method: "$payment_method"
+      },
+      partially_paid_claims: {
+        $sum: 1
+      },
+      total_billed_amount: {
+        $sum: "$amounts.billed_amount"
+      },
+      total_paid_amount: {
+        $sum: "$amounts.paid_amount"
+      },
+      total_underpaid_amount: {
+        $sum: "$underpaid_amount"
+      },
+      avg_underpaid_amount: {
+        $avg: "$underpaid_amount"
+      },
+      avg_paid_ratio_pct: {
+        $avg: "$paid_ratio_pct"
+      },
+      max_underpaid_amount: {
+        $max: "$underpaid_amount"
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      insurance_provider: "$_id.insurance_provider",
+      payment_method: "$_id.payment_method",
+      partially_paid_claims: 1,
+      total_billed_amount: {
+        $round: ["$total_billed_amount", 2]
+      },
+      total_paid_amount: {
+        $round: ["$total_paid_amount", 2]
+      },
+      total_underpaid_amount: {
+        $round: ["$total_underpaid_amount", 2]
+      },
+      avg_underpaid_amount: {
+        $round: ["$avg_underpaid_amount", 2]
+      },
+      avg_paid_ratio_pct: {
+        $round: ["$avg_paid_ratio_pct", 2]
+      },
+      max_underpaid_amount: {
+        $round: ["$max_underpaid_amount", 2]
+      }
+    }
+  },
+  {
+    $sort: {
+      total_underpaid_amount: -1,
+      partially_paid_claims: -1
+    }
+  }
+]);
+```
+
+### 3.6 Přehled fakturací podle platební metody
+
+**Zadání:** Porovnejte fakturace podle platební metody Selfpay a Insurance. Pro každou platební metodu zobrazte počet fakturací, procentuální podíl ze všech fakturací, celkovou účtovanou částku, celkovou zaplacenou částku a procento uhrazení.
+
+**Řešení v MongoDB:**
+
+```js
+db.claims.aggregate([
+  {
+    $facet: {
+      total: [
+        {
+          $group: {
+            _id: null,
+            total_billings: { $sum: 1 }
+          }
+        }
+      ],
+      by_payment_method: [
+        {
+          $group: {
+            _id: "$payment_method",
+            billing_count: { $sum: 1 },
+            total_billed_amount: {
+              $sum: "$amounts.billed_amount"
+            },
+            total_paid_amount: {
+              $sum: "$amounts.paid_amount"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    $unwind: "$total"
+  },
+  {
+    $unwind: "$by_payment_method"
+  },
+  {
+    $project: {
+      _id: 0,
+      payment_method: "$by_payment_method._id",
+      billing_count: "$by_payment_method.billing_count",
+      share_of_billings_pct: {
+        $round: [
+          {
+            $multiply: [
+              {
+                $divide: [
+                  "$by_payment_method.billing_count",
+                  "$total.total_billings"
+                ]
+              },
+              100
+            ]
+          },
+          2
+        ]
+      },
+      total_billed_amount: {
+        $round: ["$by_payment_method.total_billed_amount", 2]
+      },
+      total_paid_amount: {
+        $round: ["$by_payment_method.total_paid_amount", 2]
+      },
+      paid_to_billed_pct: {
+        $round: [
+          {
+            $multiply: [
+              {
+                $divide: [
+                  "$by_payment_method.total_paid_amount",
+                  "$by_payment_method.total_billed_amount"
+                ]
+              },
+              100
+            ]
+          },
+          2
+        ]
+      }
+    }
+  },
+  {
+    $sort: {
+      billing_count: -1
+    }
+  }
+]
 );
-```
-
-### 3.5 Zaplacené nároky, kde zaplacená částka je nižší než účtovaná
-
-**Zadání:** Najděte pojistné nároky se stavem `Paid`, u kterých je zaplacená částka nižší než účtovaná částka.
-
-**Řešení v MongoDB:**
-
-```js
-db.claims.find(
-  {
-    "claim.claim_status": "Paid",
-    $expr: {
-      $lt: ["$amounts.paid_amount", "$amounts.billed_amount"]
-    }
-  },
-  {
-    _id: 0,
-    billing_id: 1,
-    patient_id: 1,
-    encounter_id: 1,
-    insurance_provider: 1,
-    payment_method: 1,
-    "claim.claim_id": 1,
-    "claim.claim_billing_date": 1,
-    "amounts.billed_amount": 1,
-    "amounts.paid_amount": 1
-  }
-).sort({ "claim.claim_billing_date": -1, billing_id: 1 });
-```
-
-### 3.6 Nároky s chybějícími vnořenými metadaty
-
-**Zadání:** Najděte pojistné nároky placené metodou `Insurance`, kterým chybí identifikátor nároku nebo datum fakturace ve vnořeném objektu `claim`.
-
-**Řešení v MongoDB:**
-
-```js
-db.claims.find(
-  {
-    payment_method: "Insurance",
-    $or: [
-      { "claim.claim_id": { $in: [null, ""] } },
-      { "claim.claim_billing_date": null }
-    ]
-  },
-  {
-    _id: 0,
-    billing_id: 1,
-    patient_id: 1,
-    encounter_id: 1,
-    insurance_provider: 1,
-    payment_method: 1,
-    "claim.claim_id": 1,
-    "claim.claim_billing_date": 1,
-    "claim.claim_status": 1,
-    "claim.denial_reason": 1,
-    "amounts.billed_amount": 1,
-    "amounts.paid_amount": 1
-  }
-).sort({ billing_id: 1 });
 ```
 
 ---
