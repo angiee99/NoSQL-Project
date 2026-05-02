@@ -1259,7 +1259,7 @@ db.patients.insertOne({
 db.patients.find({ patient_id: "TEST_PATIENT_001" });
 ```
 
-### 4.2 Vložení testovací návštěvy pro testovacího pacienta
+### 4.2 Vložení návštěvy pro testovacího pacienta
 
 **Zadání:** Pro testovacího pacienta vložte záznam o urgentní návštěvě a následně ověřte, že byl dokument uložen v kolekci `encounters`.
 
@@ -1334,14 +1334,25 @@ db.patients.deleteMany({
   patient_id: /^TEST_/
 });
 
-db.claims.find({ billing_id: /^TEST_/ });
-db.encounters.find({ encounter_id: /^TEST_/ });
-db.patients.find({ patient_id: /^TEST_/ });
+db.runCommand({
+  count: "claims",
+  query: { billing_id: /^TEST_/ }
+});
+
+db.runCommand({
+  count: "encounters",
+  query: { encounter_id: /^TEST_/ }
+});
+
+db.runCommand({
+  count: "patients",
+  query: { patient_id: /^TEST_/ }
+});
 ```
 
 ### 4.5 Oprava nekonzistentního rodinného stavu u nezletilých pacientů
 
-**Zadání:** Najděte nezletilé pacienty, kteří mají uveden rodinný stav `Married` nebo `Widowed/Divorced/Separated`, a označte jejich rodinný stav hodnotou `Needs Review` pro další kontrolu kvality dat.
+**Zadání:** Najděte nezletilé pacienty, kteří mají uveden rodinný stav `Married` nebo `Widowed/Divorced/Separated`, a označte jejich rodinný stav hodnotou `Needs Review` pro další kontrolu dat se zachováním původního stavu.
 
 **Řešení v MongoDB:**
 
@@ -1353,23 +1364,30 @@ db.patients.updateMany(
       $in: ["Married", "Widowed/Divorced/Separated"]
     }
   },
-  {
-    $set: {
-      marital_status: "Needs Review"
+  [
+    {
+      $set: {
+        original_marital_status: "$marital_status",
+        marital_status: "Needs Review",
+        data_quality_issue: "Minor patient has inconsistent marital status",
+        data_quality_review_required: true
+      }
     }
-  }
+  ]
 );
 
 db.patients.find(
   {
     age: { $lt: 18 },
-    marital_status: "Needs Review"
+    data_quality_review_required: true
   },
   {
     _id: 0,
     patient_id: 1,
     age: 1,
-    marital_status: 1
+    original_marital_status: 1,
+    marital_status: 1,
+    data_quality_issue: 1
   }
 );
 ```
@@ -1434,14 +1452,24 @@ db.claims.aggregate([
   }
 ]);
 
-db.monthly_claim_status_summary.find().sort({ month: 1, claim_status: 1 });
+db.monthly_claim_status_summary.find(
+  {},
+  {
+    _id: 0,
+    month: 1,
+    claim_status: 1,
+    claim_count: 1,
+    total_billed_amount: 1,
+    total_paid_amount: 1
+  }
+).sort({ month: 1, claim_status: 1 });
 ```
 
 ---
 
 ## 5. Indexy, sharding, replikace a cluster
 
-### 5.1 Analýza dotazu bez vhodného indexu
+### 5.1 Analýza dotazu s výchozím plánem optimalizátoru
 
 **Zadání:** Spusťte dotaz nad kolekcí `claims`, který filtruje podle pojišťovny a data fakturace. Pomocí `explain("executionStats")` zjistěte, jak se dotaz provádí bez vynucení konkrétního indexu.
 
@@ -1461,8 +1489,6 @@ db.claims.find(
 .limit(10)
 .explain("executionStats");
 ```
-
-**Poznámka:** Tento dotaz slouží jako výchozí měření pro porovnání s dotazem, který použije složený index.
 
 ### 5.2 Vytvoření složeného indexu a spuštění dotazu s `hint`
 
@@ -1601,7 +1627,7 @@ db.collections.aggregate([
 
 ### 5.6 Simulace výpadku sekundárního uzlu a ověření dostupnosti čtení
 
-**Zadání:** Ověřte chování clusteru při výpadku sekundárního uzlu v replica setu. Nejprve zjistěte stav replica setu, poté zastavte sekundární uzel, ověřte jeho nedostupnost a spusťte čtecí dotaz nad daty. Nakonec uzel znovu spusťte a zkontrolujte jeho návrat do stavu `SECONDARY`.
+**Zadání:** Ověřte chování clusteru při výpadku sekundárního uzlu v replica setu. Nejprve zjistěte stav replica setu, poté zastavte sekundární uzel, ověřte jeho nedostupnost a spusťte čtecí dotaz nad daty. Nakonec uzel znovu spusťte a zkontrolujte jeho návrat do stavu `SECONDARY`. rs.status() je spuštěn na mongo1, ostatní příkazy na mongos.
 
 **Řešení v MongoDB a Dockeru:**
 
